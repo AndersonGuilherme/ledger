@@ -1,0 +1,56 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+
+    // free model router
+  },
+  "permissions": {
+    "allow": [
+      "ls",
+      "pwd",
+      "cat *",
+      "echo *",
+      "grep *",
+      "find *",
+      "git status",
+      "git diff",
+      "git log",
+      "git branch",
+      "git checkout *",
+      "git add *",
+      "git commit *",
+      "git stash *",
+      "yarn dev",
+      "yarn start",
+      "yarn build",
+      "yarn test",
+      "node ace serve --watch"
+    ],
+    "deny": [
+      "rm -rf /",
+      "rm -rf /*",
+      "sudo *",
+      "chmod 777 *",
+      "chown *",
+      "docker system prune *",
+      "git push --force",
+      "git reset --hard"
+    ],
+    "ask": [
+      "node ace migration:run *",
+      "node ace db:seed *",
+      "node ace db:rollback *",
+      "node ace db:refresh *",
+      "node ace db:wipe *",
+      "node ace db:create *",
+      "yarn",
+      "yarn install *",
+      "npm install *",
+      "pnpm install *",
+      "git push *",
+      "git merge *",
+      "git rebase *",
+      "docker *"
+    ]
+  }
+}
