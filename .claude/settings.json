@@ -1,56 +1,52 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-
-    // free model router
   },
   "permissions": {
     "allow": [
-      "ls",
-      "pwd",
-      "cat *",
-      "echo *",
-      "grep *",
-      "find *",
-      "git status",
-      "git diff",
-      "git log",
-      "git branch",
-      "git checkout *",
-      "git add *",
-      "git commit *",
-      "git stash *",
-      "yarn dev",
-      "yarn start",
-      "yarn build",
-      "yarn test",
-      "node ace serve --watch"
+      "*",
+      "Bash(yarn workspace:*)",
+      "Bash(npx tsc:*)",
+      "Bash(echo \"EXIT: $?\")",
+      "Read(//home/anderson/**)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('packageManager', 'not set'\\)\\)\")",
+      "Bash(~/.local/share/pnpm/pnpm --filter @ledger/shared build)",
+      "Bash(pnpm c:*)",
+      "Bash(pnpm env:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k: d[k] for k in ['scripts'] if k in d}, indent=2\\)\\)\")"
     ],
     "deny": [
-      "rm -rf /",
-      "rm -rf /*",
-      "sudo *",
-      "chmod 777 *",
-      "chown *",
-      "docker system prune *",
-      "git push --force",
-      "git reset --hard"
+      "Bash(rm -rf /)",
+      "Bash(rm -rf /*)",
+      "Bash(sudo *)",
+      "Bash(chmod 777 *)",
+      "Bash(chown *)",
+      "Bash(docker system prune *)",
+      "Bash(git push --force)",
+      "Bash(git reset --hard *)"
     ],
     "ask": [
-      "node ace migration:run *",
-      "node ace db:seed *",
-      "node ace db:rollback *",
-      "node ace db:refresh *",
-      "node ace db:wipe *",
-      "node ace db:create *",
-      "yarn",
-      "yarn install *",
-      "npm install *",
-      "pnpm install *",
-      "git push *",
-      "git merge *",
-      "git rebase *",
-      "docker *"
+      "Bash(node ace migration:run *)",
+      "Bash(node ace db:seed *)",
+      "Bash(node ace db:rollback *)",
+      "Bash(node ace db:refresh *)",
+      "Bash(node ace db:wipe *)",
+      "Bash(node ace db:create *)",
+      "Bash(yarn)",
+      "Bash(yarn install *)",
+      "Bash(npm install *)",
+      "Bash(pnpm install *)",
+      "Bash(git push *)",
+      "Bash(git merge *)",
+      "Bash(git rebase *)",
+      "Bash(docker *)"
+    ],
+    "additionalDirectories": [
+      "/home/anderson/apps/ledger/apps/web/src/app/(protected)/wallets",
+      "/home/anderson/apps/ledger/apps/web/src/app/(protected)/wallets/[id]"
     ]
-  }
+  },
+  "defaultMode": "acceptEdits"
 }

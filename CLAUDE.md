@@ -1,31 +1,47 @@
-## AI Team Operating Model
+# Modelo Operacional do Time de IA — Ledger
 
-- The primary entry point is `product-owner-orchestrator`
-- No feature should be implemented without:
-  - clear scope
-  - defined acceptance criteria
-  - design validation (if UI involved)
-- Financial logic must always involve:
-  - backend-nestjs-lead
-  - data-architect
-- Security review is mandatory for:
-  - authentication
-  - financial operations
-  - data exposure
-- QA must validate before considering any feature complete
+## Ponto de Entrada
 
-## Delegation Rules
+O agente principal é o `product-owner-orchestrator`.
 
-- UI → must involve `design-lead` before `frontend-nextjs-lead`
-- Database/schema → must involve `data-architect`
-- External integrations → must involve `integration-engineer`
-- Refactoring → must involve `dx-developer-experience`
+Nenhuma feature deve ser implementada sem:
+- escopo claramente definido
+- critérios de aceite explícitos
+- validação de design (se houver UI)
 
-## Definition of Done
+---
 
-A feature is only complete when:
+## Regras de Delegação
 
-- matches acceptance criteria
-- has no critical security issues
-- is consistent with domain rules
-- is validated by QA
+| Domínio | Agentes obrigatórios |
+|---|---|
+| UI/UX | `design-lead` antes de `frontend-nextjs-lead` |
+| Banco de dados / schema | `data-architect` |
+| Integrações externas | `integration-engineer` |
+| Refatoração | `dx-developer-experience` |
+| Lógica financeira | `financial-domain-expert` + `data-architect` + `backend-nestjs-lead` |
+| Autenticação / autorização | `security-red-team` |
+| Exposição de dados sensíveis | `security-red-team` |
+
+---
+
+## Fluxo Obrigatório
+
+```
+DISCOVERY → ARQUITETURA → PLANEJAMENTO → BUILD → VALIDAÇÃO → RELEASE
+```
+
+Nenhuma fase pode ser pulada.
+
+---
+
+## Definição de Pronto
+
+Uma feature só está completa quando:
+
+- [ ] Atende a todos os critérios de aceite definidos
+- [ ] Não possui problemas críticos de segurança
+- [ ] É consistente com as regras de domínio do Ledger
+- [ ] Foi validada pelo QA
+- [ ] Passou por revisão de segurança (quando aplicável)
+- [ ] Passou por validação financeira (quando aplicável)
