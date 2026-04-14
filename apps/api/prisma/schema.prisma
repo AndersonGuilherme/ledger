@@ -19,8 +19,11 @@ model User {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  otps        UserOtp[]
-  sessions    AuthSession[]
+  otps              UserOtp[]
+  sessions          AuthSession[]
+  ownedWallets      Wallet[]       @relation("WalletOwner")
+  walletMemberships WalletMember[] @relation("WalletMemberUser")
+  sentInvitations   WalletMember[] @relation("WalletMemberInvitedBy")
 
   @@map("users")
 }
@@ -64,4 +67,76 @@ enum UserStatus {
   active
   inactive
   blocked
+}
+
+// =============================================================================
+// Wallets Domain
+// =============================================================================
+
+enum WalletType {
+  personal
+  home
+  business
+  family
+  project
+  custom
+}
+
+enum WalletMemberRole {
+  owner
+  editor
+  viewer
+}
+
+enum WalletMemberStatus {
+  invited
+  active
+  revoked
+}
+
+model Wallet {
+  id             String     @id @default(uuid())
+  ownerUserId    String
+  name           String     @db.VarChar(150)
+  type           WalletType @default(personal)
+  currencyCode   String     @default("BRL") @db.VarChar(10)
+  initialBalance Decimal    @default(0) @db.Decimal(14, 2)
+  description    String?
+  isArchived     Boolean    @default(false)
+  archivedAt     DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  owner   User           @relation("WalletOwner", fields: [ownerUserId], references: [id])
+  members WalletMember[]
+
+  @@index([ownerUserId])
+  @@index([isArchived])
+  @@map("wallets")
+}
+
+model WalletMember {
+  id              String             @id @default(uuid())
+  walletId        String
+  userId          String?
+  role            WalletMemberRole
+  status          WalletMemberStatus @default(invited)
+  invitedEmail    String?            @db.VarChar(255)
+  invitedByUserId String?
+  invitedAt       DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  wallet    Wallet @relation(fields: [walletId], references: [id])
+  user      User?  @relation("WalletMemberUser", fields: [userId], references: [id])
+  invitedBy User?  @relation("WalletMemberInvitedBy", fields: [invitedByUserId], references: [id])
+
+  @@index([walletId])
+  @@index([userId])
+  @@index([status])
+  @@index([invitedEmail])
+  @@index([walletId, userId])
+  @@index([walletId, invitedEmail])
+  @@map("wallet_members")
 }

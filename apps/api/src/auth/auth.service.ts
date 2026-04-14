@@ -6,6 +6,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { createHash, randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import Redis from 'ioredis';
@@ -35,6 +36,7 @@ export class AuthService {
     private readonly emailProducer: EmailProducerService,
     private readonly config: ConfigService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -238,6 +240,8 @@ export class AuthService {
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
+
+    this.eventEmitter.emit('user.verified', { userId: user.id, email: user.email });
 
     // Session token never logged
     return {

@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { EmailModule } from './email/email.module';
+import { WalletsModule } from './wallets/wallets.module';
 import appConfig from './config/app.config';
 
 @Module({
@@ -21,10 +23,12 @@ import appConfig from './config/app.config';
         limit: 60,
       },
     ]),
+    EventEmitterModule.forRoot(),
     PrismaModule,
     RedisModule,
     EmailModule,
     AuthModule,
+    WalletsModule,
   ],
 })
 export class AppModule {}
