@@ -7,6 +7,10 @@ import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { EmailModule } from './email/email.module';
 import { WalletsModule } from './wallets/wallets.module';
+import { BalanceModule } from './balance/balance.module';
+import { CategoriesModule } from './categories/categories.module';
+import { BankAccountsModule } from './bank-accounts/bank-accounts.module';
+import { TransactionsModule } from './transactions/transactions.module';
 import appConfig from './config/app.config';
 
 @Module({
@@ -29,6 +33,10 @@ import appConfig from './config/app.config';
     EmailModule,
     AuthModule,
     WalletsModule,
+    BalanceModule,
+    CategoriesModule,
+    BankAccountsModule,
+    TransactionsModule,
   ],
 })
 export class AppModule {}

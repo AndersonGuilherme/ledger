@@ -107,8 +107,11 @@ model Wallet {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  owner   User           @relation("WalletOwner", fields: [ownerUserId], references: [id])
-  members WalletMember[]
+  owner        User           @relation("WalletOwner", fields: [ownerUserId], references: [id])
+  members      WalletMember[]
+  categories   Category[]
+  bankAccounts BankAccount[]
+  transactions Transaction[]
 
   @@index([ownerUserId])
   @@index([isArchived])
@@ -139,4 +142,104 @@ model WalletMember {
   @@index([walletId, userId])
   @@index([walletId, invitedEmail])
   @@map("wallet_members")
+}
+
+// =============================================================================
+// Transactions Domain
+// =============================================================================
+
+enum TransactionType {
+  income
+  expense
+  transfer_in
+  transfer_out
+  credit_card_purchase
+  invoice_payment
+}
+
+enum TransactionStatus {
+  pending
+  paid
+  canceled
+}
+
+enum CategoryType {
+  income
+  expense
+  any
+}
+
+enum BankAccountType {
+  checking
+  savings
+  credit_card
+  cash
+  investment
+  other
+}
+
+model Category {
+  id         String       @id @default(uuid())
+  walletId   String
+  name       String       @db.VarChar(100)
+  color      String?      @db.VarChar(7)
+  icon       String?      @db.VarChar(50)
+  type       CategoryType @default(any)
+  isArchived Boolean      @default(false)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  wallet       Wallet        @relation(fields: [walletId], references: [id])
+  transactions Transaction[]
+
+  @@unique([walletId, name])
+  @@index([walletId])
+  @@map("categories")
+}
+
+model BankAccount {
+  id            String          @id @default(uuid())
+  walletId      String
+  name          String          @db.VarChar(150)
+  type          BankAccountType @default(checking)
+  institution   String?         @db.VarChar(100)
+  accountNumber String?         @db.VarChar(50)
+  isArchived    Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  wallet       Wallet        @relation(fields: [walletId], references: [id])
+  transactions Transaction[]
+
+  @@index([walletId])
+  @@map("bank_accounts")
+}
+
+model Transaction {
+  id              String            @id @default(uuid())
+  walletId        String
+  categoryId      String?
+  bankAccountId   String?
+  type            TransactionType
+  status          TransactionStatus @default(pending)
+  amount          Decimal           @db.Decimal(14, 2)
+  sign            Int
+  description     String?           @db.VarChar(255)
+  notes           String?           @db.Text
+  dueDate         DateTime          @db.Date
+  paidAt          DateTime?
+  transferGroupId String?
+  deletedAt       DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  wallet      Wallet       @relation(fields: [walletId], references: [id])
+  category    Category?    @relation(fields: [categoryId], references: [id])
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
+
+  @@index([walletId, status])
+  @@index([walletId, dueDate])
+  @@index([walletId, type])
+  @@index([transferGroupId])
+  @@map("transactions")
 }
