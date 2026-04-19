@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 
 import { useCards } from "@/lib/hooks/use-cards";
+import { useWallet } from "@/lib/hooks/use-wallet";
 import { useFaturas, usePayFatura } from "@/lib/hooks/use-faturas";
 import { usePurchases, useCreatePurchase } from "@/lib/hooks/use-purchases";
 import { useBankAccounts } from "@/lib/hooks/use-bank-accounts";
@@ -340,6 +341,9 @@ export default function CardDetailPage() {
   // New purchase dialog
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
 
+  const { data: wallet } = useWallet(walletId);
+  const canWrite = wallet?.role === "owner" || wallet?.role === "editor";
+
   const { data: cards, isLoading: cardsLoading } = useCards(walletId);
   const card = cards?.find((c) => c.id === cardId);
 
@@ -553,10 +557,12 @@ export default function CardDetailPage() {
             <p className="text-sm text-muted-foreground">
               {purchases ? `${purchases.length} purchases` : ""}
             </p>
-            <Button size="sm" onClick={handleOpenPurchaseDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              New purchase
-            </Button>
+            {canWrite && (
+              <Button size="sm" onClick={handleOpenPurchaseDialog}>
+                <Plus className="h-4 w-4 mr-2" />
+                New purchase
+              </Button>
+            )}
           </div>
 
           {purchasesLoading ? (
@@ -574,10 +580,12 @@ export default function CardDetailPage() {
               <p className="text-muted-foreground text-sm max-w-xs mb-6">
                 Register your first purchase on this card.
               </p>
-              <Button onClick={handleOpenPurchaseDialog}>
-                <Plus className="h-4 w-4 mr-2" />
-                New purchase
-              </Button>
+              {canWrite && (
+                <Button onClick={handleOpenPurchaseDialog}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New purchase
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">

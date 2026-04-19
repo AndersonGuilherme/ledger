@@ -43,9 +43,3 @@ export async function archiveCard(
   await api.delete(`/wallets/${walletId}/cards/${cardId}`);
 }
 
-export async function deleteCard(
-  walletId: string,
-  cardId: string
-): Promise<void> {
-  await api.delete(`/wallets/${walletId}/cards/${cardId}`);
-}

@@ -126,6 +126,7 @@ export default function WalletDashboardPage() {
   });
 
   const currencyCode = wallet?.currencyCode ?? "BRL";
+  const canWrite = wallet?.role === "owner" || wallet?.role === "editor";
 
   return (
     <div className="p-6 lg:p-8 max-w-4xl mx-auto">
@@ -255,20 +256,22 @@ export default function WalletDashboardPage() {
       </Card>
 
       {/* Quick Actions */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href={`/${walletId}/transactions`}>
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            New transaction
-          </Button>
-        </Link>
-        <Link href={`/${walletId}/cards`}>
-          <Button variant="outline" className="gap-2">
-            <CreditCard className="h-4 w-4" />
-            New card
-          </Button>
-        </Link>
-      </div>
+      {canWrite && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href={`/${walletId}/transactions`}>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              New transaction
+            </Button>
+          </Link>
+          <Link href={`/${walletId}/cards`}>
+            <Button variant="outline" className="gap-2">
+              <CreditCard className="h-4 w-4" />
+              New card
+            </Button>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
