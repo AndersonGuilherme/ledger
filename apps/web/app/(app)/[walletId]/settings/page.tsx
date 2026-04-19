@@ -243,7 +243,10 @@ export default function SettingsPage() {
             </div>
           ) : (
             <form
-              onSubmit={generalForm.handleSubmit((v) => updateMutation.mutate(v))}
+              onSubmit={generalForm.handleSubmit((v) => {
+                if (!isOwner) return;
+                updateMutation.mutate(v);
+              })}
               className="space-y-4"
             >
               <div className="space-y-1.5">

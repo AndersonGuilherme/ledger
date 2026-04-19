@@ -39,12 +39,8 @@ export async function updateCard(
 export async function archiveCard(
   walletId: string,
   cardId: string
-): Promise<CreditCard> {
-  const response = await api.patch<CreditCard>(
-    `/wallets/${walletId}/cards/${cardId}`,
-    { isArchived: true }
-  );
-  return response.data;
+): Promise<void> {
+  await api.delete(`/wallets/${walletId}/cards/${cardId}`);
 }
 
 export async function deleteCard(

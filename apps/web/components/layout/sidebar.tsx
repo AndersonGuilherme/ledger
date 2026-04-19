@@ -15,6 +15,7 @@ import { toast } from "sonner";
 
 import { logout } from "@/services/auth.service";
 import { useAuthContext } from "@/components/providers/auth-provider";
+import { useWalletStore } from "@/lib/stores/wallet-store";
 import { WalletSwitcher } from "./wallet-switcher";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -75,9 +76,12 @@ export function Sidebar() {
 
   const walletId = params?.walletId as string | undefined;
 
+  const { setActiveWallet } = useWalletStore();
+
   const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: () => {
+      setActiveWallet(null);
       queryClient.clear();
       router.push("/login");
       toast.success("Logged out successfully.");

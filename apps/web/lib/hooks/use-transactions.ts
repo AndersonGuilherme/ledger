@@ -25,7 +25,7 @@ interface TransactionParams {
 
 export function useTransactions(walletId: string, params?: TransactionParams) {
   return useQuery<TransactionListResponse, Error>({
-    queryKey: ["transactions", walletId, params],
+    queryKey: ["transactions", walletId, params?.page, params?.limit, params?.status, params?.type, params?.dateFrom, params?.dateTo],
     queryFn: () => listTransactions(walletId, params),
     enabled: !!walletId,
     staleTime: 1000 * 30,
@@ -38,7 +38,7 @@ export function useCreateTransaction(walletId: string) {
     mutationFn: (dto) => createTransaction(walletId, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions", walletId] });
-      queryClient.invalidateQueries({ queryKey: ["wallets", walletId] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
     },
   });
 }
@@ -49,7 +49,7 @@ export function useUpdateTransaction(walletId: string) {
     mutationFn: ({ id, dto }) => updateTransaction(walletId, id, dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions", walletId] });
-      queryClient.invalidateQueries({ queryKey: ["wallets", walletId] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
     },
   });
 }
@@ -60,7 +60,7 @@ export function useDeleteTransaction(walletId: string) {
     mutationFn: (id) => deleteTransaction(walletId, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions", walletId] });
-      queryClient.invalidateQueries({ queryKey: ["wallets", walletId] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
     },
   });
 }

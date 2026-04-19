@@ -8,13 +8,20 @@ const api = axios.create({
   },
 });
 
+// Prevent multiple simultaneous 401 redirects from cascading queries
+let isRedirecting = false;
+
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
-      }
+    if (
+      error.response?.status === 401 &&
+      typeof window !== "undefined" &&
+      !isRedirecting &&
+      !window.location.pathname.startsWith("/login")
+    ) {
+      isRedirecting = true;
+      window.location.href = "/login";
     }
     return Promise.reject(error);
   }

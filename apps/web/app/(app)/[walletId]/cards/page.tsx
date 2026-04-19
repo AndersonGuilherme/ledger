@@ -9,6 +9,7 @@ import { CreditCard, Plus, Archive } from "lucide-react";
 import { toast } from "sonner";
 
 import { useCards, useCreateCard } from "@/lib/hooks/use-cards";
+import { useWallet } from "@/lib/hooks/use-wallet";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,6 +59,8 @@ export default function CardsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  const { data: wallet } = useWallet(walletId);
+  const canWrite = wallet?.role === "owner" || wallet?.role === "editor";
   const { data: cards, isLoading } = useCards(walletId);
   const createCard = useCreateCard(walletId);
 
@@ -110,10 +113,12 @@ export default function CardsPage() {
             </p>
           </div>
         </div>
-        <Button onClick={handleOpenDialog} size="sm">
-          <Plus className="h-4 w-4 mr-2" />
-          Add card
-        </Button>
+        {canWrite && (
+          <Button onClick={handleOpenDialog} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Add card
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -133,10 +138,12 @@ export default function CardsPage() {
           <p className="text-muted-foreground max-w-sm mb-6">
             Add your first credit card to start tracking purchases and faturas.
           </p>
-          <Button onClick={handleOpenDialog}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add card
-          </Button>
+          {canWrite && (
+            <Button onClick={handleOpenDialog}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add card
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -618,6 +618,17 @@ export default function CardDetailPage() {
             </div>
           )}
 
+          {!bankAccounts || bankAccounts.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-neutral-border p-6 text-center">
+              <p className="text-sm font-medium text-foreground mb-1">No bank accounts configured</p>
+              <p className="text-xs text-muted-foreground mb-3">
+                You need at least one bank account to pay a fatura. Add one in wallet settings.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setPayDialogOpen(false)}>
+                Close
+              </Button>
+            </div>
+          ) : (
           <Form {...payForm}>
             <form
               onSubmit={payForm.handleSubmit(onPaySubmit)}
@@ -639,7 +650,7 @@ export default function CardDetailPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {bankAccounts?.map((account) => (
+                        {bankAccounts.map((account) => (
                           <SelectItem key={account.id} value={account.id}>
                             {account.name}
                             {account.bankName ? ` — ${account.bankName}` : ""}
@@ -680,6 +691,7 @@ export default function CardDetailPage() {
               </DialogFooter>
             </form>
           </Form>
+          )}
         </DialogContent>
       </Dialog>
 

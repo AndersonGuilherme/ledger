@@ -163,7 +163,7 @@ function CreateTransactionDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>New Transaction</DialogTitle>
@@ -429,6 +429,7 @@ export default function TransactionsPage() {
   const [dateTo, setDateTo] = useState<string>("");
 
   const { data: wallet } = useWallet(walletId);
+  const canWrite = wallet?.role === "owner" || wallet?.role === "editor";
   const { data: categories } = useCategories(walletId);
 
   const queryParams = {
@@ -458,10 +459,12 @@ export default function TransactionsPage() {
             Income, expenses and transfers
           </p>
         </div>
-        <Button className="gap-2" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4" />
-          New transaction
-        </Button>
+        {canWrite && (
+          <Button className="gap-2" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New transaction
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -545,7 +548,7 @@ export default function TransactionsPage() {
                 ? "Try adjusting your filters."
                 : "Create your first transaction to get started."}
             </p>
-            {statusFilter === "all" && typeFilter === "all" && !dateFrom && !dateTo && (
+            {canWrite && statusFilter === "all" && typeFilter === "all" && !dateFrom && !dateTo && (
               <Button
                 className="mt-4 gap-2"
                 size="sm"
