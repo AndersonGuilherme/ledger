@@ -1,5 +1,4 @@
--- AlterEnum: ADD VALUE cannot run inside a transaction block in PostgreSQL
-ALTER TYPE "TransactionType" ADD VALUE 'credit_card_refund';
+-- credit_card_refund is defined in the transactions migration enum — no ALTER needed
 
 -- CreateEnum
 CREATE TYPE "InstallmentStatus" AS ENUM ('pending', 'paid', 'canceled');

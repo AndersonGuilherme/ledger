@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "TransactionType" AS ENUM ('income', 'expense', 'transfer_in', 'transfer_out', 'credit_card_purchase', 'invoice_payment');
+CREATE TYPE "TransactionType" AS ENUM ('income', 'expense', 'transfer_in', 'transfer_out', 'credit_card_purchase', 'invoice_payment', 'credit_card_refund');
 
 -- CreateEnum
 CREATE TYPE "TransactionStatus" AS ENUM ('pending', 'paid', 'canceled');

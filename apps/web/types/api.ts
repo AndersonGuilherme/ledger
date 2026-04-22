@@ -3,14 +3,13 @@
 export interface User {
   id: string;
   email: string;
-  name: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 // ─── Wallets ──────────────────────────────────────────────────────────────────
 
-export type WalletType = "personal" | "household" | "business" | "family" | "project";
+export type WalletType = "personal" | "home" | "business" | "family" | "project" | "custom";
 export type WalletMemberRole = "owner" | "editor" | "viewer";
 export type WalletMemberStatus = "active" | "pending" | "revoked";
 
@@ -60,22 +59,23 @@ export interface WalletMember {
 
 // ─── Bank Accounts ────────────────────────────────────────────────────────────
 
-export type BankAccountType = "checking" | "savings" | "investment" | "other";
+export type BankAccountType = "checking" | "savings" | "investment" | "credit_card" | "cash" | "other";
 
 export interface BankAccount {
   id: string;
   walletId: string;
   name: string;
   type: BankAccountType;
-  bankName: string | null;
-  balanceCents: number;
+  institution: string | null;
+  accountNumber: string | null;
+  isArchived: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 // ─── Categories ───────────────────────────────────────────────────────────────
 
-export type CategoryType = "income" | "expense" | "transfer";
+export type CategoryType = "income" | "expense" | "any";
 
 export interface Category {
   id: string;
@@ -84,6 +84,7 @@ export interface Category {
   type: CategoryType;
   color: string | null;
   icon: string | null;
+  isArchived: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -128,6 +129,7 @@ export interface CreditCard {
   closingDay: number;
   dueDay: number;
   creditLimitCents: number | null;
+  usedCreditCents: number | null;
   availableCreditCents: number | null;
   isArchived: boolean;
   createdAt: string;
@@ -183,6 +185,7 @@ export interface Fatura {
   id: string;
   cardId: string;
   walletId: string;
+  categoryId: string | null;
   referenceMonth: string;
   closingDate: string;
   dueDate: string;
@@ -193,6 +196,50 @@ export interface Fatura {
   createdAt: string;
   updatedAt: string;
   installments?: FaturaInstallment[];
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+export interface DashboardPeriodSummary {
+  income: number;
+  expenses: number;
+  net: number;
+}
+
+export interface DashboardMonthSummary extends DashboardPeriodSummary {
+  month: number;
+  year: number;
+}
+
+export interface DashboardYearSummary extends DashboardPeriodSummary {
+  year: number;
+}
+
+export interface DashboardCategoryBreakdownItem {
+  categoryId: string | null;
+  categoryName: string | null;
+  totalExpenses: number;
+  transactionCount: number;
+}
+
+export interface DashboardMonthlyTrendItem {
+  month: number;
+  year: number;
+  income: number;
+  expenses: number;
+}
+
+export interface DashboardResponse {
+  currentMonth: DashboardMonthSummary;
+  currentYear: DashboardYearSummary;
+  categoryBreakdown: DashboardCategoryBreakdownItem[];
+  monthlyTrend: DashboardMonthlyTrendItem[];
+}
+
+/** Optional query params for the dashboard endpoint. Format: YYYY-MM */
+export interface DashboardQueryParams {
+  from?: string;
+  to?: string;
 }
 
 // ─── List / Paginated Responses ───────────────────────────────────────────────
@@ -288,7 +335,7 @@ export interface UpdateTransactionDto {
   amount?: number;
   dueDate?: string;
   status?: TransactionStatus;
-  categoryId?: string;
+  categoryId?: string | null;
   bankAccountId?: string;
   paidAt?: string;
   notes?: string;
@@ -297,8 +344,7 @@ export interface UpdateTransactionDto {
 export interface CreateBankAccountDto {
   name: string;
   type: BankAccountType;
-  bankName?: string;
-  balanceCents?: number;
+  institution?: string;
 }
 
 export interface CreateCategoryDto {
@@ -335,4 +381,8 @@ export interface CreatePurchaseDto {
 export interface PayFaturaDto {
   bankAccountId: string;
   paidAt?: string;
+}
+
+export interface UpdateFaturaCategoryDto {
+  categoryId: string | null;
 }

@@ -14,14 +14,17 @@ import {
   ChevronUp,
   Plus,
   Receipt,
+  Archive,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { useCards } from "@/lib/hooks/use-cards";
+import { useCard, useArchiveCard } from "@/lib/hooks/use-cards";
 import { useWallet } from "@/lib/hooks/use-wallet";
-import { useFaturas, usePayFatura } from "@/lib/hooks/use-faturas";
-import { usePurchases, useCreatePurchase } from "@/lib/hooks/use-purchases";
+import { useFaturas, useFatura, usePayFatura, useUpdateFaturaCategory } from "@/lib/hooks/use-faturas";
+import { usePurchases, useCreatePurchase, useCancelPurchase } from "@/lib/hooks/use-purchases";
 import { useBankAccounts } from "@/lib/hooks/use-bank-accounts";
+import { useCategories } from "@/lib/hooks/use-categories";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -51,25 +54,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Fatura, FaturaStatus, CreditCardPurchase } from "@/types/api";
+import type { Fatura, FaturaStatus, CreditCardPurchase, Category } from "@/types/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatReferenceMonth(referenceMonth: string): string {
-  const date = new Date(referenceMonth + "-01");
-  return date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const date = new Date(referenceMonth + "-01T00:00:00Z");
+  return date.toLocaleDateString("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" });
 }
 
 function getFaturaStatusConfig(status: FaturaStatus) {
   switch (status) {
     case "open":
-      return { label: "Open", className: "bg-blue-50 text-blue-700 border-blue-200" };
+      return { label: "Aberta", className: "bg-blue-50 text-blue-700 border-blue-200" };
     case "closed":
-      return { label: "Closed", className: "bg-amber-50 text-amber-700 border-amber-200" };
+      return { label: "Fechada", className: "bg-amber-50 text-amber-700 border-amber-200" };
     case "overdue":
-      return { label: "Overdue", className: "bg-red-50 text-red-700 border-red-200" };
+      return { label: "Vencida", className: "bg-red-50 text-red-700 border-red-200" };
     case "paid":
-      return { label: "Paid", className: "bg-green-50 text-green-700 border-green-200" };
+      return { label: "Paga", className: "bg-green-50 text-green-700 border-green-200" };
   }
 }
 
@@ -80,7 +83,7 @@ type Tab = "faturas" | "purchases";
 // ─── Pay Fatura Dialog Schema ─────────────────────────────────────────────────
 
 const payFaturaSchema = z.object({
-  bankAccountId: z.string().min(1, "Bank account is required"),
+  bankAccountId: z.string().min(1, "Conta bancária é obrigatória"),
   paidAt: z.string().optional(),
 });
 
@@ -89,16 +92,16 @@ type PayFaturaFormValues = z.infer<typeof payFaturaSchema>;
 // ─── New Purchase Dialog Schema ───────────────────────────────────────────────
 
 const createPurchaseSchema = z.object({
-  description: z.string().min(1, "Description is required"),
+  description: z.string().min(1, "Descrição é obrigatória"),
   totalAmountReais: z
-    .number({ coerce: true, invalid_type_error: "Enter a valid amount" })
-    .positive("Amount must be positive"),
+    .number({ coerce: true, invalid_type_error: "Informe um valor válido" })
+    .positive("O valor deve ser positivo"),
   installmentCount: z
     .number({ coerce: true })
     .int()
-    .min(1, "Minimum 1 installment")
-    .max(48, "Maximum 48 installments"),
-  purchaseDate: z.string().min(1, "Purchase date is required"),
+    .min(1, "Mínimo 1 parcela")
+    .max(48, "Máximo 48 parcelas"),
+  purchaseDate: z.string().min(1, "Data da compra é obrigatória"),
   categoryId: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -111,16 +114,38 @@ function FaturaRow({
   fatura,
   walletId,
   cardId,
+  canWrite,
+  categories,
   onPay,
 }: {
   fatura: Fatura;
   walletId: string;
   cardId: string;
+  canWrite: boolean;
+  categories: Category[];
   onPay: (fatura: Fatura) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const statusConfig = getFaturaStatusConfig(fatura.status);
   const canPay = fatura.status !== "paid";
+
+  const updateCategory = useUpdateFaturaCategory(walletId, cardId);
+
+  const { data: detail, isLoading: detailLoading } = useFatura(
+    walletId,
+    cardId,
+    expanded ? fatura.id : ""
+  );
+  const installments = detail?.installments ?? [];
+
+  const assignedCategory = fatura.categoryId
+    ? categories.find((c) => c.id === fatura.categoryId)
+    : null;
+
+  function handleCategoryChange(value: string) {
+    const newCategoryId = value === "__none__" ? null : value;
+    updateCategory.mutate({ faturaId: fatura.id, dto: { categoryId: newCategoryId } });
+  }
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -136,13 +161,41 @@ function FaturaRow({
               {formatReferenceMonth(fatura.referenceMonth)}
             </p>
             <p className="text-xs text-muted-foreground">
-              Due:{" "}
+              Vencimento:{" "}
               {new Date(fatura.dueDate).toLocaleDateString("pt-BR")}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+          <div onClick={(e) => e.stopPropagation()} className="flex items-center">
+            {canWrite ? (
+              <Select
+                value={fatura.categoryId ?? "__none__"}
+                onValueChange={handleCategoryChange}
+                disabled={updateCategory.isPending}
+              >
+                <SelectTrigger className="h-7 text-xs w-32 border-dashed">
+                  <SelectValue placeholder="Categoria..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">
+                    <span className="text-muted-foreground">Sem categoria</span>
+                  </SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : assignedCategory ? (
+              <Badge variant="outline" className="text-xs">
+                {assignedCategory.name}
+              </Badge>
+            ) : null}
+          </div>
+
           <span className="font-semibold text-sm">
             {formatCurrency(fatura.totalCents)}
           </span>
@@ -162,7 +215,7 @@ function FaturaRow({
                 onPay(fatura);
               }}
             >
-              Pay
+              Pagar
             </Button>
           )}
           {expanded ? (
@@ -173,14 +226,20 @@ function FaturaRow({
         </div>
       </button>
 
-      {expanded && fatura.installments && fatura.installments.length > 0 && (
+      {expanded && detailLoading && (
+        <div className="border-t bg-muted/20 px-4 py-4 text-center text-sm text-muted-foreground">
+          Carregando parcelas...
+        </div>
+      )}
+
+      {expanded && !detailLoading && installments.length > 0 && (
         <div className="border-t bg-muted/20">
           <div className="px-4 py-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-              Installments
+              Parcelas
             </p>
             <div className="space-y-1">
-              {fatura.installments.map((installment) => (
+              {installments.map((installment) => (
                 <div
                   key={installment.id}
                   className="flex items-center justify-between py-1.5 text-sm"
@@ -208,7 +267,7 @@ function FaturaRow({
                           : "bg-blue-50 text-blue-700 border-blue-200"
                       )}
                     >
-                      {installment.status}
+                      {installment.status === "paid" ? "Pago" : installment.status === "canceled" ? "Cancelado" : "Pendente"}
                     </Badge>
                   </div>
                 </div>
@@ -218,19 +277,18 @@ function FaturaRow({
         </div>
       )}
 
-      {expanded &&
-        (!fatura.installments || fatura.installments.length === 0) && (
-          <div className="border-t bg-muted/20 px-4 py-4 text-center text-sm text-muted-foreground">
-            No installments found for this fatura.
-          </div>
-        )}
+      {expanded && !detailLoading && installments.length === 0 && (
+        <div className="border-t bg-muted/20 px-4 py-4 text-center text-sm text-muted-foreground">
+          Nenhuma parcela encontrada para esta fatura.
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Purchase Row ─────────────────────────────────────────────────────────────
 
-function PurchaseRow({ purchase }: { purchase: CreditCardPurchase }) {
+function PurchaseRow({ purchase, canWrite, onCancel }: { purchase: CreditCardPurchase; canWrite: boolean; onCancel: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -266,8 +324,19 @@ function PurchaseRow({ purchase }: { purchase: CreditCardPurchase }) {
                 : "bg-slate-50 text-slate-500 border-slate-200"
             )}
           >
-            {purchase.status}
+            {purchase.status === "active" ? "Ativo" : "Cancelado"}
           </Badge>
+          {canWrite && purchase.status === "active" && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive flex-shrink-0"
+              title="Cancelar compra"
+              onClick={(e) => { e.stopPropagation(); onCancel(purchase.id); }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
           {expanded ? (
             <ChevronUp className="h-4 w-4 text-muted-foreground" />
           ) : (
@@ -280,7 +349,7 @@ function PurchaseRow({ purchase }: { purchase: CreditCardPurchase }) {
         <div className="border-t bg-muted/20">
           <div className="px-4 py-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-              Installments
+              Parcelas
             </p>
             <div className="space-y-1">
               {purchase.installments.map((inst) => (
@@ -293,7 +362,7 @@ function PurchaseRow({ purchase }: { purchase: CreditCardPurchase }) {
                       {inst.installmentNumber}/{purchase.installmentCount}
                     </span>
                     <span className="text-muted-foreground text-xs">
-                      Due: {new Date(inst.dueDate).toLocaleDateString("pt-BR")}
+                      Venc.: {new Date(inst.dueDate).toLocaleDateString("pt-BR")}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -311,7 +380,7 @@ function PurchaseRow({ purchase }: { purchase: CreditCardPurchase }) {
                           : "bg-blue-50 text-blue-700 border-blue-200"
                       )}
                     >
-                      {inst.status}
+                      {inst.status === "paid" ? "Pago" : inst.status === "canceled" ? "Cancelado" : "Pendente"}
                     </Badge>
                   </div>
                 </div>
@@ -334,18 +403,15 @@ export default function CardDetailPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>("faturas");
 
-  // Pay fatura dialog
   const [payDialogOpen, setPayDialogOpen] = useState(false);
   const [selectedFatura, setSelectedFatura] = useState<Fatura | null>(null);
 
-  // New purchase dialog
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
 
   const { data: wallet } = useWallet(walletId);
   const canWrite = wallet?.role === "owner" || wallet?.role === "editor";
 
-  const { data: cards, isLoading: cardsLoading } = useCards(walletId);
-  const card = cards?.find((c) => c.id === cardId);
+  const { data: card, isLoading: cardLoading } = useCard(walletId, cardId);
 
   const { data: faturas, isLoading: faturasLoading } = useFaturas(
     walletId,
@@ -355,25 +421,29 @@ export default function CardDetailPage() {
     walletId,
     cardId
   );
-  const { data: bankAccounts } = useBankAccounts(walletId);
+  const { data: bankAccountsRaw } = useBankAccounts(walletId);
+  const bankAccounts = bankAccountsRaw?.filter((a) => !a.isArchived);
+
+  const { data: categoriesRaw } = useCategories(walletId);
+  const categories = (categoriesRaw ?? []).filter((c) => !c.isArchived);
 
   const payFatura = usePayFatura(walletId, cardId);
   const createPurchase = useCreatePurchase(walletId, cardId);
+  const cancelPurchase = useCancelPurchase(walletId, cardId);
+  const archiveCard = useArchiveCard(walletId);
 
-  // Pay fatura form
   const payForm = useForm<PayFaturaFormValues>({
     resolver: zodResolver(payFaturaSchema),
-    defaultValues: { bankAccountId: "", paidAt: "" },
+    defaultValues: { bankAccountId: "", paidAt: new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }) },
   });
 
-  // Create purchase form
   const purchaseForm = useForm<CreatePurchaseFormValues>({
     resolver: zodResolver(createPurchaseSchema),
     defaultValues: {
       description: "",
       totalAmountReais: 0,
       installmentCount: 1,
-      purchaseDate: new Date().toISOString().split("T")[0],
+      purchaseDate: new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }),
       categoryId: "",
       notes: "",
     },
@@ -381,7 +451,7 @@ export default function CardDetailPage() {
 
   function handleOpenPayDialog(fatura: Fatura) {
     setSelectedFatura(fatura);
-    payForm.reset({ bankAccountId: "", paidAt: "" });
+    payForm.reset({ bankAccountId: "", paidAt: new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }) });
     setPayDialogOpen(true);
   }
 
@@ -395,10 +465,10 @@ export default function CardDetailPage() {
           ...(values.paidAt ? { paidAt: values.paidAt } : {}),
         },
       });
-      toast.success("Fatura paid successfully");
+      toast.success("Fatura paga com sucesso");
       setPayDialogOpen(false);
     } catch {
-      toast.error("Failed to pay fatura");
+      toast.error("Não foi possível pagar a fatura");
     }
   }
 
@@ -407,7 +477,7 @@ export default function CardDetailPage() {
       description: "",
       totalAmountReais: 0,
       installmentCount: 1,
-      purchaseDate: new Date().toISOString().split("T")[0],
+      purchaseDate: new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }),
       categoryId: "",
       notes: "",
     });
@@ -424,10 +494,10 @@ export default function CardDetailPage() {
         ...(values.categoryId ? { categoryId: values.categoryId } : {}),
         ...(values.notes ? { notes: values.notes } : {}),
       });
-      toast.success("Purchase created successfully");
+      toast.success("Compra criada com sucesso");
       setPurchaseDialogOpen(false);
     } catch {
-      toast.error("Failed to create purchase");
+      toast.error("Não foi possível criar a compra");
     }
   }
 
@@ -440,58 +510,122 @@ export default function CardDetailPage() {
     : [];
 
   return (
-    <div className="p-8">
-      {/* Back button */}
+    <div className="p-4 md:p-6 lg:p-8">
+      {/* Botão voltar */}
       <button
         type="button"
         onClick={() => router.push(`/${walletId}/cards`)}
         className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
       >
         <ArrowLeft className="h-4 w-4" />
-        All cards
+        Todos os cartões
       </button>
 
-      {/* Card header */}
-      {cardsLoading ? (
+      {/* Cabeçalho do cartão */}
+      {cardLoading ? (
         <div className="rounded-2xl p-6 bg-gradient-to-br from-slate-800 to-slate-900 mb-8 h-36">
           <Skeleton className="h-6 w-48 bg-slate-700 mb-2" />
           <Skeleton className="h-4 w-32 bg-slate-700" />
         </div>
       ) : card ? (
-        <div className="rounded-2xl p-6 bg-gradient-to-br from-slate-800 to-slate-900 mb-8 flex items-end justify-between">
+        <div className="rounded-2xl p-4 sm:p-6 bg-gradient-to-br from-slate-800 to-slate-900 mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <p className="font-bold text-white text-2xl">{card.name}</p>
+            <p className="font-bold text-white text-xl sm:text-2xl">{card.name}</p>
             <p className="text-slate-400 text-sm mt-1">
-              Closing day: {card.closingDay} | Due day: {card.dueDay}
+              Fechamento: dia {card.closingDay} | Vencimento: dia {card.dueDay}
             </p>
           </div>
-          <div className="text-right">
-            {card.availableCreditCents !== null && (
-              <p className="text-white font-semibold">
-                {formatCurrency(card.availableCreditCents)}{" "}
-                <span className="text-slate-400 text-xs font-normal">available</span>
-              </p>
-            )}
+          <div className="flex flex-col items-start sm:items-end gap-2">
             {card.creditLimitCents !== null && (
-              <p className="text-slate-400 text-xs mt-0.5">
-                Limit: {formatCurrency(card.creditLimitCents)}
-              </p>
+              <div className="text-left sm:text-right w-full sm:min-w-[180px]">
+                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                  <span>Utilizado</span>
+                  <span>
+                    {card.usedCreditCents !== null
+                      ? formatCurrency(card.usedCreditCents)
+                      : "—"}
+                  </span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-slate-600 overflow-hidden mb-1">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      card.usedCreditCents !== null &&
+                        card.usedCreditCents / card.creditLimitCents > 0.9
+                        ? "bg-red-400"
+                        : card.usedCreditCents !== null &&
+                          card.usedCreditCents / card.creditLimitCents > 0.7
+                        ? "bg-amber-400"
+                        : "bg-emerald-400"
+                    )}
+                    style={{
+                      width:
+                        card.usedCreditCents !== null
+                          ? `${Math.min(
+                              100,
+                              Math.round(
+                                (card.usedCreditCents / card.creditLimitCents) * 100
+                              )
+                            )}%`
+                          : "0%",
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs mb-0.5">
+                  <span className="text-slate-400">Disponível</span>
+                  <span className="text-white font-semibold">
+                    {card.availableCreditCents !== null
+                      ? formatCurrency(card.availableCreditCents)
+                      : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>Limite</span>
+                  <span>{formatCurrency(card.creditLimitCents)}</span>
+                </div>
+              </div>
+            )}
+            {canWrite && wallet?.role === "owner" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-slate-400 hover:text-white hover:bg-slate-700 h-7 text-xs gap-1"
+                disabled={archiveCard.isPending}
+                onClick={() => {
+                  if (confirm("Arquivar este cartão? Esta ação não pode ser desfeita.")) {
+                    archiveCard.mutate(cardId, {
+                      onSuccess: () => { toast.success("Cartão arquivado."); router.push(`/${walletId}/cards`); },
+                      onError: (err: unknown) => {
+                        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+                        if (msg === "CARD_HAS_OPEN_FATURAS") {
+                          toast.error("Quite todas as faturas em aberto antes de arquivar o cartão.");
+                        } else {
+                          toast.error("Não foi possível arquivar o cartão.");
+                        }
+                      },
+                    });
+                  }
+                }}
+              >
+                <Archive className="h-3.5 w-3.5" />
+                Arquivar cartão
+              </Button>
             )}
           </div>
         </div>
       ) : (
         <div className="rounded-2xl p-6 bg-muted mb-8 h-36 flex items-center justify-center">
-          <p className="text-muted-foreground text-sm">Card not found</p>
+          <p className="text-muted-foreground text-sm">Cartão não encontrado</p>
         </div>
       )}
 
-      {/* Tab navigation */}
-      <div className="flex gap-1 mb-6 border-b">
+      {/* Navegação por abas */}
+      <div className="flex gap-1 mb-6 border-b overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab("faturas")}
           className={cn(
-            "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+            "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
             activeTab === "faturas"
               ? "border-foreground text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -504,18 +638,18 @@ export default function CardDetailPage() {
           type="button"
           onClick={() => setActiveTab("purchases")}
           className={cn(
-            "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+            "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
             activeTab === "purchases"
               ? "border-foreground text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
           <ShoppingBag className="h-4 w-4" />
-          Purchases
+          Compras
         </button>
       </div>
 
-      {/* Faturas tab */}
+      {/* Aba Faturas */}
       {activeTab === "faturas" && (
         <div>
           {faturasLoading ? (
@@ -525,13 +659,13 @@ export default function CardDetailPage() {
               ))}
             </div>
           ) : !sortedFaturas || sortedFaturas.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="flex flex-col items-center justify-center py-20 text-center px-4">
               <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
                 <Receipt className="h-7 w-7 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold mb-1">No faturas yet</h3>
+              <h3 className="text-lg font-semibold mb-1">Nenhuma fatura ainda</h3>
               <p className="text-muted-foreground text-sm max-w-xs">
-                Faturas will appear here after purchases are made on this card.
+                As faturas aparecerão aqui após compras serem realizadas neste cartão.
               </p>
             </div>
           ) : (
@@ -542,6 +676,8 @@ export default function CardDetailPage() {
                   fatura={fatura}
                   walletId={walletId}
                   cardId={cardId}
+                  canWrite={canWrite}
+                  categories={categories}
                   onPay={handleOpenPayDialog}
                 />
               ))}
@@ -550,17 +686,17 @@ export default function CardDetailPage() {
         </div>
       )}
 
-      {/* Purchases tab */}
+      {/* Aba Compras */}
       {activeTab === "purchases" && (
         <div>
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-muted-foreground">
-              {purchases ? `${purchases.length} purchases` : ""}
+              {purchases ? `${purchases.length} compra(s)` : ""}
             </p>
             {canWrite && (
               <Button size="sm" onClick={handleOpenPurchaseDialog}>
                 <Plus className="h-4 w-4 mr-2" />
-                New purchase
+                Nova compra
               </Button>
             )}
           </div>
@@ -572,37 +708,49 @@ export default function CardDetailPage() {
               ))}
             </div>
           ) : !purchases || purchases.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="flex flex-col items-center justify-center py-20 text-center px-4">
               <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
                 <ShoppingBag className="h-7 w-7 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold mb-1">No purchases yet</h3>
+              <h3 className="text-lg font-semibold mb-1">Nenhuma compra ainda</h3>
               <p className="text-muted-foreground text-sm max-w-xs mb-6">
-                Register your first purchase on this card.
+                Registre sua primeira compra neste cartão.
               </p>
               {canWrite && (
                 <Button onClick={handleOpenPurchaseDialog}>
                   <Plus className="h-4 w-4 mr-2" />
-                  New purchase
+                  Nova compra
                 </Button>
               )}
             </div>
           ) : (
             <div className="space-y-2">
               {purchases.map((purchase) => (
-                <PurchaseRow key={purchase.id} purchase={purchase} />
+                <PurchaseRow
+                  key={purchase.id}
+                  purchase={purchase}
+                  canWrite={canWrite}
+                  onCancel={(id) => {
+                    if (confirm("Cancelar esta compra? Todas as parcelas pendentes serão removidas.")) {
+                      cancelPurchase.mutate(id, {
+                        onSuccess: () => toast.success("Compra cancelada."),
+                        onError: () => toast.error("Não foi possível cancelar a compra."),
+                      });
+                    }
+                  }}
+                />
               ))}
             </div>
           )}
         </div>
       )}
 
-      {/* Pay Fatura Dialog */}
+      {/* Diálogo Pagar Fatura */}
       <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Pay fatura{" "}
+              Pagar fatura{" "}
               {selectedFatura
                 ? formatReferenceMonth(selectedFatura.referenceMonth)
                 : ""}
@@ -612,13 +760,13 @@ export default function CardDetailPage() {
           {selectedFatura && (
             <div className="rounded-lg bg-muted/50 p-3 mb-2">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Amount due</span>
+                <span className="text-muted-foreground">Valor</span>
                 <span className="font-semibold">
                   {formatCurrency(selectedFatura.totalCents)}
                 </span>
               </div>
               <div className="flex justify-between text-sm mt-1">
-                <span className="text-muted-foreground">Due date</span>
+                <span className="text-muted-foreground">Vencimento</span>
                 <span>
                   {new Date(selectedFatura.dueDate).toLocaleDateString("pt-BR")}
                 </span>
@@ -628,13 +776,18 @@ export default function CardDetailPage() {
 
           {!bankAccounts || bankAccounts.length === 0 ? (
             <div className="rounded-lg border border-dashed border-neutral-border p-6 text-center">
-              <p className="text-sm font-medium text-foreground mb-1">No bank accounts configured</p>
+              <p className="text-sm font-medium text-foreground mb-1">Nenhuma conta bancária configurada</p>
               <p className="text-xs text-muted-foreground mb-3">
-                You need at least one bank account to pay a fatura. Add one in wallet settings.
+                É necessário ter ao menos uma conta bancária para pagar uma fatura.
               </p>
-              <Button variant="outline" size="sm" onClick={() => setPayDialogOpen(false)}>
-                Close
-              </Button>
+              <div className="flex gap-2 justify-center flex-wrap">
+                <Button variant="outline" size="sm" onClick={() => setPayDialogOpen(false)}>
+                  Fechar
+                </Button>
+                <Button size="sm" onClick={() => { setPayDialogOpen(false); router.push(`/${walletId}/settings`); }}>
+                  Ir para configurações
+                </Button>
+              </div>
             </div>
           ) : (
           <Form {...payForm}>
@@ -647,21 +800,21 @@ export default function CardDetailPage() {
                 name="bankAccountId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Bank account</FormLabel>
+                    <FormLabel>Conta bancária</FormLabel>
                     <Select
                       onValueChange={field.onChange}
                       value={field.value}
                     >
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select account..." />
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Selecione a conta..." />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {bankAccounts.map((account) => (
                           <SelectItem key={account.id} value={account.id}>
                             {account.name}
-                            {account.bankName ? ` — ${account.bankName}` : ""}
+                            {account.institution ? ` — ${account.institution}` : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -676,25 +829,26 @@ export default function CardDetailPage() {
                 name="paidAt"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment date (optional)</FormLabel>
+                    <FormLabel>Data do pagamento (opcional)</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} value={field.value ?? ""} />
+                      <Input type="date" className="w-full" {...field} value={field.value ?? ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <DialogFooter>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
                 <Button
                   type="button"
                   variant="outline"
+                  className="w-full sm:w-auto"
                   onClick={() => setPayDialogOpen(false)}
                 >
-                  Cancel
+                  Cancelar
                 </Button>
-                <Button type="submit" disabled={payFatura.isPending}>
-                  {payFatura.isPending ? "Processing..." : "Confirm payment"}
+                <Button type="submit" className="w-full sm:w-auto" disabled={payFatura.isPending}>
+                  {payFatura.isPending ? "Processando..." : "Confirmar pagamento"}
                 </Button>
               </DialogFooter>
             </form>
@@ -703,11 +857,11 @@ export default function CardDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* New Purchase Dialog */}
+      {/* Diálogo Nova Compra */}
       <Dialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New purchase</DialogTitle>
+            <DialogTitle>Nova compra</DialogTitle>
           </DialogHeader>
 
           <Form {...purchaseForm}>
@@ -720,28 +874,29 @@ export default function CardDetailPage() {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel>Descrição</FormLabel>
                     <FormControl>
-                      <Input placeholder="Amazon, Netflix..." {...field} />
+                      <Input className="w-full" placeholder="Amazon, Netflix..." {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={purchaseForm.control}
                   name="totalAmountReais"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Amount (R$)</FormLabel>
+                      <FormLabel>Valor (R$)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
                           min={0.01}
                           step="0.01"
                           placeholder="150.00"
+                          className="w-full"
                           {...field}
                         />
                       </FormControl>
@@ -755,13 +910,14 @@ export default function CardDetailPage() {
                   name="installmentCount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Installments</FormLabel>
+                      <FormLabel>Parcelas</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
                           min={1}
                           max={48}
                           placeholder="1"
+                          className="w-full"
                           {...field}
                         />
                       </FormControl>
@@ -776,25 +932,26 @@ export default function CardDetailPage() {
                 name="purchaseDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Purchase date</FormLabel>
+                    <FormLabel>Data da compra</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input type="date" className="w-full" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <DialogFooter>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
                 <Button
                   type="button"
                   variant="outline"
+                  className="w-full sm:w-auto"
                   onClick={() => setPurchaseDialogOpen(false)}
                 >
-                  Cancel
+                  Cancelar
                 </Button>
-                <Button type="submit" disabled={createPurchase.isPending}>
-                  {createPurchase.isPending ? "Creating..." : "Add purchase"}
+                <Button type="submit" className="w-full sm:w-auto" disabled={createPurchase.isPending}>
+                  {createPurchase.isPending ? "Criando..." : "Adicionar compra"}
                 </Button>
               </DialogFooter>
             </form>

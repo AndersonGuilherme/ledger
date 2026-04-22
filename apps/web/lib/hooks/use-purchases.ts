@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listPurchases, createPurchase } from "@/services/purchases.service";
+import { listPurchases, createPurchase, cancelPurchase } from "@/services/purchases.service";
 import type {
   CreditCardPurchase,
   CreatePurchaseDto,
@@ -13,6 +13,17 @@ export function usePurchases(walletId: string, cardId: string) {
     queryFn: () => listPurchases(walletId, cardId),
     enabled: !!walletId && !!cardId,
     staleTime: 1000 * 30,
+  });
+}
+
+export function useCancelPurchase(walletId: string, cardId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<CreditCardPurchase, Error, string>({
+    mutationFn: (purchaseId) => cancelPurchase(walletId, cardId, purchaseId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["purchases", walletId, cardId] });
+      queryClient.invalidateQueries({ queryKey: ["faturas", walletId, cardId] });
+    },
   });
 }
 

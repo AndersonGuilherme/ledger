@@ -22,3 +22,10 @@ export async function createCategory(
   );
   return response.data;
 }
+
+export async function archiveCategory(
+  walletId: string,
+  categoryId: string
+): Promise<void> {
+  await api.delete(`/wallets/${walletId}/categories/${categoryId}`);
+}

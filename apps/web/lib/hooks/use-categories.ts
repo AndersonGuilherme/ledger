@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listCategories, createCategory } from "@/services/categories.service";
+import { listCategories, createCategory, archiveCategory } from "@/services/categories.service";
 import type { Category, CreateCategoryDto } from "@/types/api";
 
 export function useCategories(walletId: string) {
@@ -17,6 +17,16 @@ export function useCreateCategory(walletId: string) {
   const queryClient = useQueryClient();
   return useMutation<Category, Error, CreateCategoryDto>({
     mutationFn: (dto) => createCategory(walletId, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["categories", walletId] });
+    },
+  });
+}
+
+export function useArchiveCategory(walletId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (categoryId) => archiveCategory(walletId, categoryId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories", walletId] });
     },

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --filter @ledger/api start:dev",
+    "dev:all": "pnpm --filter @ledger/api start:dev & pnpm --filter @ledger/web dev",
     "build": "pnpm --filter @ledger/api build",
     "build:api": "pnpm --filter @ledger/api build",
     "build:web": "pnpm --filter @ledger/web build",

@@ -20,6 +20,7 @@ import {
 import { SessionGuard } from '../auth/guards/session.guard';
 import { WalletMemberGuard } from '../wallets/guards/wallet-member.guard';
 import { RequireWalletRole } from '../wallets/decorators/wallet-role.decorator';
+import { ActiveMember, ActiveMemberPayload } from '../wallets/decorators/active-member.decorator';
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
@@ -75,8 +76,9 @@ export class TransactionsController {
   async create(
     @Param('walletId') walletId: string,
     @Body() dto: CreateTransactionDto,
+    @ActiveMember() member: ActiveMemberPayload,
   ): Promise<TransactionResponseDto> {
-    return this.transactionsService.create(walletId, dto);
+    return this.transactionsService.create(walletId, dto, member.userId);
   }
 
   @Patch(':transactionId')

@@ -15,6 +15,17 @@ export async function listPurchases(
   return response.data.purchases;
 }
 
+export async function cancelPurchase(
+  walletId: string,
+  cardId: string,
+  purchaseId: string
+): Promise<CreditCardPurchase> {
+  const response = await api.delete<CreditCardPurchase>(
+    `/wallets/${walletId}/cards/${cardId}/purchases/${purchaseId}`
+  );
+  return response.data;
+}
+
 export async function createPurchase(
   walletId: string,
   cardId: string,

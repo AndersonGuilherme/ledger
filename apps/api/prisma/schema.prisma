@@ -196,6 +196,7 @@ model Category {
   wallet       Wallet               @relation(fields: [walletId], references: [id])
   transactions Transaction[]
   purchases    CreditCardPurchase[]
+  faturas      Fatura[]
 
   @@unique([walletId, name])
   @@index([walletId])
@@ -238,10 +239,11 @@ model Transaction {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  wallet      Wallet       @relation(fields: [walletId], references: [id])
-  category    Category?    @relation(fields: [categoryId], references: [id])
-  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
-  invoicePaymentFatura Fatura? @relation("FaturaPaymentTx")
+  wallet                 Wallet       @relation(fields: [walletId], references: [id])
+  category               Category?    @relation(fields: [categoryId], references: [id])
+  bankAccount            BankAccount? @relation(fields: [bankAccountId], references: [id])
+  invoicePaymentFatura   Fatura?      @relation("FaturaPaymentTx")
+  projectedPaymentFatura Fatura?      @relation("FaturaProjectedTx")
 
   @@index([walletId, status])
   @@index([walletId, dueDate])
@@ -289,17 +291,21 @@ model Fatura {
   id                 String    @id @default(uuid())
   cardId             String
   walletId           String
+  categoryId         String?
   referenceMonth     String    @db.VarChar(7)
   closingDate        DateTime  @db.Date
   dueDate            DateTime  @db.Date
   invoicePaymentTxId String?   @unique
+  projectedTxId      String?   @unique
   paidAt             DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
   card             CreditCard    @relation(fields: [cardId], references: [id])
   wallet           Wallet        @relation(fields: [walletId], references: [id])
+  category         Category?     @relation(fields: [categoryId], references: [id])
   invoicePaymentTx Transaction?  @relation("FaturaPaymentTx", fields: [invoicePaymentTxId], references: [id])
+  projectedTx      Transaction?  @relation("FaturaProjectedTx", fields: [projectedTxId], references: [id])
   installments     Installment[]
 
   @@unique([cardId, referenceMonth])

@@ -30,8 +30,8 @@ import {
 } from "@/components/ui/select";
 
 const schema = z.object({
-  name: z.string().min(1, "Name is required").max(80, "Max 80 characters"),
-  type: z.enum(["personal", "household", "business", "family", "project"] as const),
+  name: z.string().min(1, "Nome é obrigatório").max(80, "Máximo 80 caracteres"),
+  type: z.enum(["personal", "home", "custom", "business", "family", "project"] as const),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -54,11 +54,11 @@ export default function NewWalletPage() {
     onSuccess: (wallet) => {
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
       setActiveWallet(wallet.id);
-      toast.success(`Wallet "${wallet.name}" created!`);
+      toast.success(`Carteira "${wallet.name}" criada!`);
       router.push(`/${wallet.id}`);
     },
     onError: () => {
-      toast.error("Could not create the wallet. Try again.");
+      toast.error("Não foi possível criar a carteira. Tente novamente.");
     },
   });
 
@@ -67,28 +67,29 @@ export default function NewWalletPage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
+    <div className="p-4 md:p-8 max-w-2xl w-full mx-auto">
       <Button variant="ghost" asChild className="mb-6 -ml-2 text-muted-foreground">
         <Link href="/wallets">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to wallets
+          Voltar para carteiras
         </Link>
       </Button>
 
       <Card className="border-neutral-border">
         <CardHeader>
-          <CardTitle>New wallet</CardTitle>
+          <CardTitle>Nova carteira</CardTitle>
           <CardDescription>
-            Create a wallet to organize your finances
+            Crie uma carteira para organizar suas finanças
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">Nome</Label>
               <Input
                 id="name"
-                placeholder="e.g. Personal finances"
+                placeholder="Ex: Finanças pessoais"
+                className="w-full"
                 autoFocus
                 {...form.register("name")}
               />
@@ -100,22 +101,23 @@ export default function NewWalletPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="type">Type</Label>
+              <Label htmlFor="type">Tipo</Label>
               <Select
                 defaultValue="personal"
                 onValueChange={(v) =>
                   form.setValue("type", v as FormValues["type"])
                 }
               >
-                <SelectTrigger id="type">
-                  <SelectValue placeholder="Select type" />
+                <SelectTrigger id="type" className="w-full">
+                  <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="personal">Personal</SelectItem>
-                  <SelectItem value="household">Household</SelectItem>
-                  <SelectItem value="business">Business</SelectItem>
-                  <SelectItem value="family">Family</SelectItem>
-                  <SelectItem value="project">Project</SelectItem>
+                  <SelectItem value="personal">Pessoal</SelectItem>
+                  <SelectItem value="home">Casa</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                  <SelectItem value="business">Empresarial</SelectItem>
+                  <SelectItem value="family">Família</SelectItem>
+                  <SelectItem value="project">Projeto</SelectItem>
                 </SelectContent>
               </Select>
               {form.formState.errors.type && (
@@ -125,14 +127,14 @@ export default function NewWalletPage() {
               )}
             </div>
 
-            <div className="flex gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Button
                 type="button"
                 variant="outline"
                 className="flex-1"
                 asChild
               >
-                <Link href="/wallets">Cancel</Link>
+                <Link href="/wallets">Cancelar</Link>
               </Button>
               <Button
                 type="submit"
@@ -142,10 +144,10 @@ export default function NewWalletPage() {
                 {createMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
+                    Criando...
                   </>
                 ) : (
-                  "Create wallet"
+                  "Criar carteira"
                 )}
               </Button>
             </div>

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -10,6 +11,7 @@ import {
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { FaturasService } from './faturas.service';
 import { PayFaturaDto } from './dto/pay-fatura.dto';
+import { UpdateFaturaCategoryDto } from './dto/update-fatura-category.dto';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { WalletMemberGuard } from '../wallets/guards/wallet-member.guard';
 import { RequireWalletRole } from '../wallets/decorators/wallet-role.decorator';
@@ -53,5 +55,17 @@ export class FaturasController {
     @Body() dto: PayFaturaDto,
   ) {
     return this.faturasService.pay(walletId, cardId, faturaId, dto);
+  }
+
+  @Patch(':faturaId/category')
+  @RequireWalletRole('editor')
+  @ApiOperation({ summary: 'Atribuir ou remover categoria da fatura' })
+  updateCategory(
+    @Param('walletId') walletId: string,
+    @Param('cardId') cardId: string,
+    @Param('faturaId') faturaId: string,
+    @Body() dto: UpdateFaturaCategoryDto,
+  ) {
+    return this.faturasService.updateCategory(walletId, cardId, faturaId, dto);
   }
 }

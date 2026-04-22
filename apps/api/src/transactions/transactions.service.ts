@@ -1,8 +1,10 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { TransactionStatus, TransactionType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -50,6 +52,7 @@ export class TransactionsService {
   async create(
     walletId: string,
     dto: CreateTransactionDto,
+    callerId: string,
   ): Promise<TransactionResponseDto> {
     // Rule 1: 'canceled' is never a valid initial status
     if ((dto.status as string) === 'canceled') {
@@ -115,6 +118,12 @@ export class TransactionsService {
       if (!destinationAccount) {
         throw new UnprocessableEntityException('TRANSFER_COUNTERPART_BANK_ACCOUNT_NOT_FOUND');
       }
+
+      // FIX C-2: Caller must be an active member of the destination wallet
+      const isMember = await this.prisma.walletMember.findFirst({
+        where: { walletId: destinationAccount.walletId, userId: callerId, status: 'active' },
+      });
+      if (!isMember) throw new ForbiddenException('FORBIDDEN_TRANSFER_DESTINATION');
 
       const transferGroupId = uuidv4();
 
@@ -371,8 +380,55 @@ export class TransactionsService {
       return this.toDto(updated as RawTransaction);
     }
 
-    // Non-transfer: single update
+    // Non-transfer: single update (or atomic fatura promotion for invoice_payment)
     // FIX SC-3: Include walletId in update where clause
+    if (existing.type === TransactionType.invoice_payment) {
+      // Look up a fatura whose projected transaction is this one
+      const fatura = await this.prisma.fatura.findFirst({
+        where: { projectedTxId: id },
+      });
+
+      if (fatura !== null && fatura.invoicePaymentTxId === null) {
+        // Atomically: mark transaction paid + promote fatura + mark installments paid
+        // FIX H-5: Catch unique constraint violation (P2002) from race condition
+        try {
+          await this.prisma.$transaction([
+            this.prisma.transaction.update({
+              where: { id, walletId },
+              data: { status: TransactionStatus.paid, paidAt },
+            }),
+            this.prisma.fatura.update({
+              where: { id: fatura.id },
+              data: {
+                paidAt,
+                invoicePaymentTxId: id,
+                projectedTxId: null,
+              },
+            }),
+            this.prisma.installment.updateMany({
+              where: { faturaId: fatura.id, status: { not: 'canceled' } },
+              data: { status: 'paid', paidAt },
+            }),
+          ]);
+        } catch (e) {
+          if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+            throw new UnprocessableEntityException('FATURA_ALREADY_PAID');
+          }
+          throw e;
+        }
+
+        const updated = await this.prisma.transaction.findFirst({
+          where: { id, walletId, deletedAt: null },
+        });
+
+        if (!updated) {
+          throw new NotFoundException('TRANSACTION_NOT_FOUND');
+        }
+
+        return this.toDto(updated as RawTransaction);
+      }
+    }
+
     const updated = await this.prisma.transaction.update({
       where: { id, walletId },
       data: { status: TransactionStatus.paid, paidAt },
@@ -429,6 +485,43 @@ export class TransactionsService {
       }
 
       return this.toDto(updated as RawTransaction);
+    }
+
+    // FIX H-3: invoice_payment cancellation must reset fatura state atomically
+    if (
+      existing.type === TransactionType.invoice_payment &&
+      existing.status === TransactionStatus.paid
+    ) {
+      const fatura = await this.prisma.fatura.findFirst({
+        where: { invoicePaymentTxId: id },
+      });
+
+      if (fatura) {
+        await this.prisma.$transaction([
+          this.prisma.transaction.update({
+            where: { id, walletId },
+            data: { status: TransactionStatus.canceled, paidAt: null },
+          }),
+          this.prisma.fatura.update({
+            where: { id: fatura.id },
+            data: { invoicePaymentTxId: null, paidAt: null },
+          }),
+          this.prisma.installment.updateMany({
+            where: { faturaId: fatura.id, status: { not: 'canceled' } },
+            data: { status: 'pending', paidAt: null },
+          }),
+        ]);
+
+        const updated = await this.prisma.transaction.findFirst({
+          where: { id, walletId, deletedAt: null },
+        });
+
+        if (!updated) {
+          throw new NotFoundException('TRANSACTION_NOT_FOUND');
+        }
+
+        return this.toDto(updated as RawTransaction);
+      }
     }
 
     // Non-transfer: single update

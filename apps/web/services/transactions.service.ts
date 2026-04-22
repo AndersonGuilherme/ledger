@@ -13,8 +13,11 @@ export async function listTransactions(
     limit?: number;
     status?: string;
     type?: string;
-    dateFrom?: string;
-    dateTo?: string;
+    dueDateFrom?: string;
+    dueDateTo?: string;
+    search?: string;
+    categoryId?: string;
+    bankAccountId?: string;
   }
 ): Promise<TransactionListResponse> {
   const response = await api.get<TransactionListResponse>(
@@ -43,6 +46,28 @@ export async function updateTransaction(
   const response = await api.patch<Transaction>(
     `/wallets/${walletId}/transactions/${id}`,
     dto
+  );
+  return response.data;
+}
+
+export async function payTransaction(
+  walletId: string,
+  id: string,
+  paidAt?: string
+): Promise<Transaction> {
+  const response = await api.post<Transaction>(
+    `/wallets/${walletId}/transactions/${id}/pay`,
+    paidAt ? { paidAt } : {}
+  );
+  return response.data;
+}
+
+export async function cancelTransaction(
+  walletId: string,
+  id: string
+): Promise<Transaction> {
+  const response = await api.post<Transaction>(
+    `/wallets/${walletId}/transactions/${id}/cancel`
   );
   return response.data;
 }

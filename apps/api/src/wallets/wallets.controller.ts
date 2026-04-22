@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -26,11 +27,18 @@ import { WalletsService } from './wallets.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
 import { ArchiveWalletDto } from './dto/archive-wallet.dto';
+import { DeleteWalletDto } from './dto/delete-wallet.dto';
 import {
   WalletDetailDto,
   WalletListResponseDto,
   ArchiveWalletResponseDto,
 } from './dto/wallet-response.dto';
+import {
+  CanDeleteWalletResponseDto,
+  DeleteWalletResponseDto,
+} from './dto/can-delete-wallet-response.dto';
+import { DashboardResponseDto } from './dto/dashboard-response.dto';
+import { DashboardQueryDto } from './dto/dashboard-query.dto';
 
 @ApiTags('wallets')
 @ApiBearerAuth('session-token')
@@ -114,6 +122,48 @@ export class WalletsController {
     @Body() dto: ArchiveWalletDto,
   ): Promise<ArchiveWalletResponseDto> {
     return this.walletsService.archive(walletId, dto.confirm);
+  }
+
+  @Get(':walletId/dashboard')
+  @UseGuards(WalletMemberGuard)
+  @ApiOperation({ summary: 'Obter sumário de dashboard da carteira (todos os membros)' })
+  @ApiQuery({ name: 'from', required: false, description: 'Start month YYYY-MM (e.g. 2025-01)', example: '2025-01' })
+  @ApiQuery({ name: 'to', required: false, description: 'End month YYYY-MM (e.g. 2025-12)', example: '2025-12' })
+  @ApiResponse({ status: 200, type: DashboardResponseDto })
+  @ApiResponse({ status: 400, description: 'Parâmetros de intervalo inválidos.' })
+  @ApiResponse({ status: 401, description: 'Não autenticado.' })
+  @ApiResponse({ status: 403, description: 'Sem acesso à carteira.' })
+  async getDashboard(
+    @Param('walletId') walletId: string,
+    @Query() query: DashboardQueryDto,
+  ): Promise<DashboardResponseDto> {
+    return this.walletsService.getDashboard(walletId, query.from, query.to);
+  }
+
+  @Get(':walletId/can-delete')
+  @UseGuards(WalletMemberGuard)
+  @RequireWalletRole('owner')
+  @ApiOperation({ summary: 'Verificar se carteira pode ser deletada (somente owner)' })
+  @ApiResponse({ status: 200, type: CanDeleteWalletResponseDto })
+  async canDelete(
+    @Param('walletId') walletId: string,
+  ): Promise<CanDeleteWalletResponseDto> {
+    return this.walletsService.canDelete(walletId);
+  }
+
+  @Delete(':walletId')
+  @UseGuards(WalletMemberGuard)
+  @RequireWalletRole('owner')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Deletar carteira permanentemente (somente owner, requer confirm: true)' })
+  @ApiResponse({ status: 200, type: DeleteWalletResponseDto })
+  @ApiResponse({ status: 400, description: 'Confirmação não fornecida.' })
+  @ApiResponse({ status: 422, description: 'Carteira não pode ser deletada.' })
+  async deleteWallet(
+    @Param('walletId') walletId: string,
+    @Body() dto: DeleteWalletDto,
+  ): Promise<DeleteWalletResponseDto> {
+    return this.walletsService.deleteWallet(walletId, dto.confirm);
   }
 
   @Post(':walletId/unarchive')

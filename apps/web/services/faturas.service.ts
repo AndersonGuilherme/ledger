@@ -4,6 +4,7 @@ import type {
   FaturaListResponse,
   FaturaStatus,
   PayFaturaDto,
+  UpdateFaturaCategoryDto,
 } from "@/types/api";
 
 export interface PayFaturaResponse {
@@ -46,6 +47,19 @@ export async function payFatura(
 ): Promise<PayFaturaResponse> {
   const response = await api.post<PayFaturaResponse>(
     `/wallets/${walletId}/cards/${cardId}/faturas/${faturaId}/pay`,
+    dto
+  );
+  return response.data;
+}
+
+export async function updateFaturaCategory(
+  walletId: string,
+  cardId: string,
+  faturaId: string,
+  dto: UpdateFaturaCategoryDto
+): Promise<Fatura> {
+  const response = await api.patch<Fatura>(
+    `/wallets/${walletId}/cards/${cardId}/faturas/${faturaId}/category`,
     dto
   );
   return response.data;

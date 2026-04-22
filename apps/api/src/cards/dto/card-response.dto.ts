@@ -20,6 +20,9 @@ export class CardResponseDto {
   creditLimitCents: number | null;
 
   @ApiPropertyOptional({ nullable: true, description: 'null quando não há limite definido' })
+  usedCreditCents: number | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'null quando não há limite definido' })
   availableCreditCents: number | null;
 
   @ApiProperty()

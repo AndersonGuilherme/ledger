@@ -6,6 +6,11 @@ import type {
   UpdateCardDto,
 } from "@/types/api";
 
+export async function getCard(walletId: string, cardId: string): Promise<CreditCard> {
+  const response = await api.get<CreditCard>(`/wallets/${walletId}/cards/${cardId}`);
+  return response.data;
+}
+
 export async function listCards(walletId: string): Promise<CreditCard[]> {
   const response = await api.get<CardListResponse>(
     `/wallets/${walletId}/cards`

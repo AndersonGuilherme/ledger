@@ -5,9 +5,10 @@ import {
   listFaturas,
   getFatura,
   payFatura,
+  updateFaturaCategory,
   type PayFaturaResponse,
 } from "@/services/faturas.service";
-import type { Fatura, FaturaStatus, PayFaturaDto } from "@/types/api";
+import type { Fatura, FaturaStatus, PayFaturaDto, UpdateFaturaCategoryDto } from "@/types/api";
 
 export function useFaturas(
   walletId: string,
@@ -53,6 +54,31 @@ export function usePayFatura(walletId: string, cardId: string) {
       });
       queryClient.invalidateQueries({
         queryKey: ["cards", walletId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["wallets"],
+      });
+    },
+  });
+}
+
+export function useUpdateFaturaCategory(walletId: string, cardId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    Fatura,
+    Error,
+    { faturaId: string; dto: UpdateFaturaCategoryDto }
+  >({
+    mutationFn: ({ faturaId, dto }) =>
+      updateFaturaCategory(walletId, cardId, faturaId, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["faturas", walletId, cardId],
+      });
+      // Invalidate dashboard so category breakdown reflects the change
+      queryClient.invalidateQueries({
+        queryKey: ["dashboard", walletId],
       });
     },
   });

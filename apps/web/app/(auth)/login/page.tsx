@@ -25,14 +25,14 @@ import {
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const emailSchema = z.object({
-  email: z.string().email("Enter a valid email address"),
+  email: z.string().email("Informe um endereço de e-mail válido"),
 });
 
 const otpSchema = z.object({
   token: z
     .string()
-    .length(6, "The code must have exactly 6 characters")
-    .regex(/^\d+$/, "The code must contain only numbers"),
+    .length(6, "O código deve ter exatamente 6 caracteres")
+    .regex(/^\d+$/, "O código deve conter apenas números"),
 });
 
 type EmailFormValues = z.infer<typeof emailSchema>;
@@ -45,7 +45,7 @@ export default function LoginPage() {
   const [step, setStep] = useState<"email" | "otp">("email");
   const [emailAddress, setEmailAddress] = useState("");
 
-  // ── Step 1: Email form ──
+  // ── Etapa 1: formulário de e-mail ──
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),
     defaultValues: { email: "" },
@@ -54,11 +54,11 @@ export default function LoginPage() {
   const requestOtpMutation = useMutation({
     mutationFn: (email: string) => requestOtp(email),
     onSuccess: () => {
-      toast.success("Code sent! Check your inbox.");
+      toast.success("Código enviado! Verifique sua caixa de entrada.");
       setStep("otp");
     },
     onError: () => {
-      toast.error("Could not send the code. Try again.");
+      toast.error("Não foi possível enviar o código. Tente novamente.");
     },
   });
 
@@ -67,7 +67,7 @@ export default function LoginPage() {
     requestOtpMutation.mutate(values.email);
   }
 
-  // ── Step 2: OTP form ──
+  // ── Etapa 2: formulário OTP ──
   const otpForm = useForm<OtpFormValues>({
     resolver: zodResolver(otpSchema),
     defaultValues: { token: "" },
@@ -76,11 +76,11 @@ export default function LoginPage() {
   const verifyOtpMutation = useMutation({
     mutationFn: (token: string) => verifyOtp(emailAddress, token),
     onSuccess: () => {
-      toast.success("Authenticated successfully!");
+      toast.success("Autenticado com sucesso!");
       router.push("/wallets");
     },
     onError: () => {
-      toast.error("Invalid or expired code. Try again.");
+      toast.error("Código inválido ou expirado. Tente novamente.");
       otpForm.reset();
     },
   });
@@ -108,16 +108,16 @@ export default function LoginPage() {
 
         {step === "email" ? (
           <>
-            <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+            <CardTitle className="text-2xl font-bold">Bem-vindo(a) de volta</CardTitle>
             <CardDescription>
-              Enter your email to receive a login code
+              Informe seu e-mail para receber um código de acesso
             </CardDescription>
           </>
         ) : (
           <>
-            <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
+            <CardTitle className="text-2xl font-bold">Verifique seu e-mail</CardTitle>
             <CardDescription>
-              We sent a 6-digit code to{" "}
+              Enviamos um código de 6 dígitos para{" "}
               <span className="font-medium text-foreground">{emailAddress}</span>
             </CardDescription>
           </>
@@ -131,17 +131,17 @@ export default function LoginPage() {
             className="space-y-4"
           >
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">E-mail</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="voce@exemplo.com"
                   autoComplete="email"
                   autoFocus
                   className={cn(
-                    "pl-10",
+                    "pl-10 w-full",
                     emailForm.formState.errors.email && "border-destructive"
                   )}
                   {...emailForm.register("email")}
@@ -156,16 +156,16 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              className="w-full bg-brand-primary hover:bg-brand-primary/90"
+              className="w-full bg-brand-primary hover:bg-brand-primary/90 min-h-10"
               disabled={requestOtpMutation.isPending}
             >
               {requestOtpMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending code...
+                  Enviando código...
                 </>
               ) : (
-                "Send code"
+                "Enviar código"
               )}
             </Button>
           </form>
@@ -175,7 +175,7 @@ export default function LoginPage() {
             className="space-y-4"
           >
             <div className="space-y-2">
-              <Label htmlFor="token">Login code</Label>
+              <Label htmlFor="token">Código de acesso</Label>
               <div className="relative">
                 <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -187,7 +187,7 @@ export default function LoginPage() {
                   autoFocus
                   inputMode="numeric"
                   className={cn(
-                    "pl-10 text-center tracking-widest text-lg font-mono",
+                    "pl-10 text-center tracking-widest text-lg font-mono w-full",
                     otpForm.formState.errors.token && "border-destructive"
                   )}
                   {...otpForm.register("token")}
@@ -202,39 +202,39 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              className="w-full bg-brand-primary hover:bg-brand-primary/90"
+              className="w-full bg-brand-primary hover:bg-brand-primary/90 min-h-10"
               disabled={verifyOtpMutation.isPending}
             >
               {verifyOtpMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Verifying...
+                  Verificando...
                 </>
               ) : (
-                "Sign in"
+                "Entrar"
               )}
             </Button>
 
             <Button
               type="button"
               variant="ghost"
-              className="w-full"
+              className="w-full min-h-10"
               onClick={handleBack}
               disabled={verifyOtpMutation.isPending}
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Change email
+              Alterar e-mail
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">
-              Didn&apos;t receive the code?{" "}
+              Não recebeu o código?{" "}
               <button
                 type="button"
                 className="text-brand-primary hover:underline font-medium"
                 onClick={() => requestOtpMutation.mutate(emailAddress)}
                 disabled={requestOtpMutation.isPending}
               >
-                Resend
+                Reenviar
               </button>
             </p>
           </form>

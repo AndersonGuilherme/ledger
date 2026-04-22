@@ -4,6 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { FaturasService } from '../faturas/faturas.service';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import {
   PurchaseResponseDto,
@@ -77,7 +78,10 @@ interface RawCreditCard {
 
 @Injectable()
 export class PurchasesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly faturasService: FaturasService,
+  ) {}
 
   async create(
     walletId: string,
@@ -181,6 +185,15 @@ export class PurchasesService {
           })),
         });
 
+        // 7. Upsert the projected transaction for each affected fatura.
+        // Runs inside the same DB transaction so the update is atomic with installment creation.
+        // Deduplicate faturaIds — a purchase with installmentCount=1 touches exactly one fatura,
+        // but multi-installment purchases can land in separate faturas (one per cycle).
+        const uniqueFaturaIds = [...new Set(installmentFaturas.map((f) => f.faturaId))];
+        for (const faturaId of uniqueFaturaIds) {
+          await this.faturasService.upsertProjectedTransaction(faturaId, tx);
+        }
+
         return newPurchase;
       },
       { timeout: 10_000 },
@@ -276,16 +289,28 @@ export class PurchasesService {
       throw new UnprocessableEntityException('PURCHASE_HAS_PAID_INSTALLMENTS');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.installment.updateMany({
+    // Collect the unique faturaIds affected by this cancellation before mutating
+    const affectedFaturaIds = [
+      ...new Set(purchase.installments.map((i) => i.faturaId)),
+    ];
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.installment.updateMany({
         where: { purchaseId: id },
         data: { status: 'canceled' },
-      }),
-      this.prisma.creditCardPurchase.update({
+      });
+
+      await tx.creditCardPurchase.update({
         where: { id },
         data: { status: 'canceled', canceledAt: new Date() },
-      }),
-    ]);
+      });
+
+      // Recalculate the projected transaction for each affected fatura.
+      // If the fatura now has zero non-canceled installments, the projected tx is canceled.
+      for (const faturaId of affectedFaturaIds) {
+        await this.faturasService.upsertProjectedTransaction(faturaId, tx);
+      }
+    });
 
     return this.findOne(walletId, cardId, id);
   }

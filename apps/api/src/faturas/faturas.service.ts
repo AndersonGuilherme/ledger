@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PayFaturaDto } from './dto/pay-fatura.dto';
+import { UpdateFaturaCategoryDto } from './dto/update-fatura-category.dto';
 import {
   FaturaResponseDto,
   FaturaListResponseDto,
@@ -12,7 +13,7 @@ import {
   FaturaStatus,
   FaturaInstallmentDto,
 } from './dto/fatura-response.dto';
-import { Prisma, TransactionStatus, TransactionType } from '@prisma/client';
+import { Prisma, PrismaClient, TransactionStatus, TransactionType } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Fatura status — computed at read time from stored dates (BRT, UTC-normalized)
@@ -45,6 +46,16 @@ function isPrismaUniqueError(e: unknown): boolean {
     (e as { code: string }).code === 'P2002'
   );
 }
+
+// ---------------------------------------------------------------------------
+// Type alias for Prisma interactive transaction client.
+// Prisma.$transaction(async (tx) => ...) provides a PrismaClient instance
+// stripped of the top-level transaction/lifecycle methods.
+// ---------------------------------------------------------------------------
+type PrismaTxClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
 
 // ---------------------------------------------------------------------------
 
@@ -82,6 +93,7 @@ export class FaturasService {
       id: f.id,
       cardId: f.cardId,
       walletId: f.walletId,
+      categoryId: f.categoryId,
       referenceMonth: f.referenceMonth,
       closingDate: f.closingDate,
       dueDate: f.dueDate,
@@ -140,6 +152,7 @@ export class FaturasService {
       id: fatura.id,
       cardId: fatura.cardId,
       walletId: fatura.walletId,
+      categoryId: fatura.categoryId,
       referenceMonth: fatura.referenceMonth,
       closingDate: fatura.closingDate,
       dueDate: fatura.dueDate,
@@ -184,26 +197,17 @@ export class FaturasService {
         const [lockedFatura] = await tx.$queryRaw<Array<{
           id: string;
           invoicePaymentTxId: string | null;
+          projectedTxId: string | null;
           closingDate: Date;
           dueDate: Date;
+          categoryId: string | null;
         }>>(
-          Prisma.sql`SELECT id, "invoicePaymentTxId", "closingDate", "dueDate" FROM faturas WHERE id = ${faturaId} AND "cardId" = ${cardId} AND "walletId" = ${walletId} FOR UPDATE`,
+          Prisma.sql`SELECT id, "invoicePaymentTxId", "projectedTxId", "closingDate", "dueDate", "categoryId" FROM faturas WHERE id = ${faturaId} AND "cardId" = ${cardId} AND "walletId" = ${walletId} FOR UPDATE`,
         );
 
         if (!lockedFatura) throw new NotFoundException('FATURA_NOT_FOUND');
         if (lockedFatura.invoicePaymentTxId !== null) {
           throw new UnprocessableEntityException('FATURA_ALREADY_PAID');
-        }
-
-        const today = todayUTC();
-        const status = computeFaturaStatus(
-          lockedFatura.closingDate,
-          lockedFatura.dueDate,
-          null,
-          today,
-        );
-        if (status === 'open') {
-          throw new UnprocessableEntityException('FATURA_NOT_CLOSED');
         }
 
         // Compute total inside the lock — consistent with installment state
@@ -215,6 +219,19 @@ export class FaturasService {
 
         if (totalCents === 0) {
           throw new UnprocessableEntityException('FATURA_NOTHING_TO_PAY');
+        }
+
+        // Cancel the projected transaction (if any) before creating the real payment tx.
+        // The real paid invoice_payment transaction replaces the projected obligation.
+        if (lockedFatura.projectedTxId !== null) {
+          await tx.transaction.update({
+            where: { id: lockedFatura.projectedTxId },
+            data: { status: TransactionStatus.canceled },
+          });
+          await tx.fatura.update({
+            where: { id: faturaId },
+            data: { projectedTxId: null },
+          });
         }
 
         const amountDecimal = totalCents / 100;
@@ -233,6 +250,7 @@ export class FaturasService {
             dueDate: lockedFatura.dueDate,
             paidAt,
             bankAccountId: dto.bankAccountId,
+            ...(lockedFatura.categoryId !== null && { categoryId: lockedFatura.categoryId }),
           },
         });
 
@@ -272,6 +290,146 @@ export class FaturasService {
       bankAccountId: dto.bankAccountId,
       paidAt,
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Domain helper: upsert or cancel the projected transaction for a fatura.
+  //
+  // Must be called inside an active Prisma interactive transaction (tx) so that
+  // the projected tx mutation is atomic with the installment mutation that triggered it.
+  //
+  // Rules:
+  //   - If fatura is already paid (invoicePaymentTxId set) → skip (no-op)
+  //   - If sum of non-canceled installments == 0 → cancel existing projected tx (if any)
+  //   - If sum > 0 and projected tx exists → update amount + dueDate
+  //   - If sum > 0 and no projected tx → create a new pending invoice_payment transaction
+  // ---------------------------------------------------------------------------
+  async upsertProjectedTransaction(faturaId: string, tx: PrismaTxClient): Promise<void> {
+    // Fetch fatura with card name (for description) inside the tx context
+    const fatura = await tx.fatura.findUnique({
+      where: { id: faturaId },
+      include: { card: { select: { name: true } } },
+    });
+
+    if (!fatura) return; // defensive: fatura should exist at call site
+
+    // If already paid, the projected tx was already canceled in pay() — nothing to do
+    if (fatura.invoicePaymentTxId !== null) return;
+
+    // Compute current non-canceled installment total
+    const agg = await tx.installment.aggregate({
+      where: { faturaId, status: { not: 'canceled' } },
+      _sum: { amountCents: true },
+    });
+    const totalCents = agg._sum.amountCents ?? 0;
+
+    if (totalCents === 0) {
+      // No obligation — cancel and unlink any existing projected transaction
+      if (fatura.projectedTxId !== null) {
+        await tx.transaction.update({
+          where: { id: fatura.projectedTxId },
+          data: { status: TransactionStatus.canceled },
+        });
+        await tx.fatura.update({
+          where: { id: faturaId },
+          data: { projectedTxId: null },
+        });
+      }
+      return;
+    }
+
+    const amountDecimal = totalCents / 100;
+    const description = `Fatura ${fatura.card.name} ${fatura.referenceMonth}`;
+
+    if (fatura.projectedTxId !== null) {
+      // Projected tx already exists — update the amount, dueDate, description, and categoryId
+      await tx.transaction.update({
+        where: { id: fatura.projectedTxId },
+        data: {
+          amount: amountDecimal,
+          dueDate: fatura.dueDate,
+          description,
+          categoryId: fatura.categoryId ?? null,
+          // Ensure status is pending in case it was previously canceled then a purchase re-added
+          status: TransactionStatus.pending,
+        },
+      });
+    } else {
+      // No projected tx yet — create one and link it to the fatura
+      const projectedTx = await tx.transaction.create({
+        data: {
+          walletId: fatura.walletId,
+          type: TransactionType.invoice_payment,
+          status: TransactionStatus.pending,
+          amount: amountDecimal,
+          sign: -1,
+          description,
+          dueDate: fatura.dueDate,
+          ...(fatura.categoryId !== null && { categoryId: fatura.categoryId }),
+        },
+      });
+
+      await tx.fatura.update({
+        where: { id: faturaId },
+        data: { projectedTxId: projectedTx.id },
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Update the category assigned to a fatura.
+  // Also propagates the change to the projected transaction and (if paid) to
+  // the actual payment transaction so the dashboard breakdown stays consistent.
+  // ---------------------------------------------------------------------------
+  async updateCategory(
+    walletId: string,
+    cardId: string,
+    faturaId: string,
+    dto: UpdateFaturaCategoryDto,
+  ): Promise<FaturaResponseDto> {
+    await this.assertCardExists(walletId, cardId);
+
+    const fatura = await this.prisma.fatura.findFirst({
+      where: { id: faturaId, cardId, walletId },
+    });
+    if (!fatura) throw new NotFoundException('FATURA_NOT_FOUND');
+
+    // Validate that the category (when provided) belongs to this wallet
+    if (dto.categoryId !== null) {
+      const category = await this.prisma.category.findFirst({
+        where: { id: dto.categoryId, walletId },
+      });
+      if (!category) throw new NotFoundException('CATEGORY_NOT_FOUND');
+    }
+
+    const categoryId = dto.categoryId ?? null;
+
+    await this.prisma.$transaction(async (tx) => {
+      // Update the fatura itself
+      await tx.fatura.update({
+        where: { id: faturaId },
+        data: { categoryId },
+      });
+
+      // Sync the projected transaction (pending obligation)
+      if (fatura.projectedTxId !== null) {
+        await tx.transaction.update({
+          where: { id: fatura.projectedTxId },
+          data: { categoryId },
+        });
+      }
+
+      // Sync the real payment transaction (already paid faturas — retroactive consistency)
+      if (fatura.invoicePaymentTxId !== null) {
+        await tx.transaction.update({
+          where: { id: fatura.invoicePaymentTxId },
+          data: { categoryId },
+        });
+      }
+    });
+
+    // Re-fetch fresh state to build response
+    return this.findOne(walletId, cardId, faturaId);
   }
 
   // ---------------------------------------------------------------------------

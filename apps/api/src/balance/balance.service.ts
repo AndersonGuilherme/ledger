@@ -22,25 +22,29 @@ export class BalanceService implements IBalanceService {
       return new Map();
     }
 
+    // Fatura obligations are now represented as pending invoice_payment Transactions
+    // (type=invoice_payment, status=pending, sign=-1) created automatically by FaturasService
+    // whenever installments are added to a fatura. They are already included in projected_sum
+    // through the standard transactions aggregation — no separate subquery is needed.
     const rows = await this.prisma.$queryRaw<BalanceRow[]>(Prisma.sql`
       SELECT
         w.id                                                        AS wallet_id,
         w."initialBalance"::text                                    AS initial_balance,
         SUM(
           CASE WHEN t.status = 'paid'
-               THEN t.signed_amount
+               THEN t.amount * t.sign
           END
         )::text                                                     AS settled_sum,
         SUM(
           CASE WHEN t.status IN ('paid', 'pending')
-               THEN t.signed_amount
+               THEN t.amount * t.sign
           END
         )::text                                                     AS projected_sum
       FROM wallets w
       LEFT JOIN transactions t
         ON t."walletId" = w.id
-       AND t.deleted_at IS NULL
-      WHERE w.id = ANY(${walletIds}::uuid[])
+       AND t."deletedAt" IS NULL
+      WHERE w.id::text = ANY(${walletIds})
       GROUP BY w.id, w."initialBalance"
     `);
 

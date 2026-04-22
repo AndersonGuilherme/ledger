@@ -95,6 +95,14 @@ export class CardsService {
       throw new UnprocessableEntityException('CARD_ALREADY_ARCHIVED');
     }
 
+    const openFaturasCount = await this.prisma.fatura.count({
+      where: { cardId: id, invoicePaymentTxId: null },
+    });
+
+    if (openFaturasCount > 0) {
+      throw new UnprocessableEntityException('CARD_HAS_OPEN_FATURAS');
+    }
+
     const updated = await this.prisma.creditCard.update({
       where: { id },
       data: { isArchived: true },
@@ -124,24 +132,26 @@ export class CardsService {
   // ---------------------------------------------------------------------------
 
   private async computeAvailableCredit(card: CreditCard): Promise<CardResponseDto> {
+    let usedCreditCents: number | null = null;
     let availableCreditCents: number | null = null;
 
     if (card.creditLimitCents !== null) {
-      // Open exposure = sum of pending installments in open/closed/overdue faturas
+      // Open exposure = sum of pending installments in open/closed/overdue faturas.
+      // Paid faturas (invoicePaymentTxId IS NOT NULL) are excluded — their installments
+      // are no longer consuming credit, so the limit is restored automatically.
       const result = await this.prisma.installment.aggregate({
         where: {
           cardId: card.id,
           status: 'pending',
           fatura: {
-            // Exclude paid faturas: if invoicePaymentTxId is set, it's paid
             invoicePaymentTxId: null,
           },
         },
         _sum: { amountCents: true },
       });
 
-      const openExposure = result._sum.amountCents ?? 0;
-      availableCreditCents = card.creditLimitCents - openExposure;
+      usedCreditCents = result._sum.amountCents ?? 0;
+      availableCreditCents = card.creditLimitCents - usedCreditCents;
     }
 
     return {
@@ -151,6 +161,7 @@ export class CardsService {
       closingDay: card.closingDay,
       dueDay: card.dueDay,
       creditLimitCents: card.creditLimitCents,
+      usedCreditCents,
       availableCreditCents,
       isArchived: card.isArchived,
       createdAt: card.createdAt,

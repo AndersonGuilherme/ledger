@@ -20,11 +20,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { WalletListItem } from "@/types/api";
 
 const WALLET_TYPE_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  personal: { label: "Personal", icon: Wallet, color: "bg-brand-primary-50 text-brand-primary" },
-  household: { label: "Household", icon: Users, color: "bg-blue-50 text-blue-700" },
-  business: { label: "Business", icon: Briefcase, color: "bg-orange-50 text-orange-700" },
-  family: { label: "Family", icon: Users, color: "bg-green-50 text-green-700" },
-  project: { label: "Project", icon: Briefcase, color: "bg-purple-50 text-purple-700" },
+  personal: { label: "Pessoal", icon: Wallet, color: "bg-brand-primary-50 text-brand-primary" },
+  home: { label: "Casa", icon: Users, color: "bg-blue-50 text-blue-700" },
+  custom: { label: "Personalizado", icon: Wallet, color: "bg-slate-50 text-slate-700" },
+  business: { label: "Empresarial", icon: Briefcase, color: "bg-orange-50 text-orange-700" },
+  family: { label: "Família", icon: Users, color: "bg-green-50 text-green-700" },
+  project: { label: "Projeto", icon: Briefcase, color: "bg-purple-50 text-purple-700" },
 };
 
 function WalletCard({ wallet }: { wallet: WalletListItem }) {
@@ -64,12 +65,12 @@ function WalletCard({ wallet }: { wallet: WalletListItem }) {
           {wallet.name}
         </CardTitle>
         <CardDescription className="text-xs">
-          Created {new Date(wallet.createdAt).toLocaleDateString("pt-BR")}
+          Criada em {new Date(wallet.createdAt).toLocaleDateString("pt-BR")}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Open wallet</span>
+          <span className="text-sm text-muted-foreground">Abrir carteira</span>
           <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-brand-primary transition-colors" />
         </div>
       </CardContent>
@@ -99,27 +100,27 @@ export default function WalletsPage() {
   const { data: wallets, isLoading, isError } = useWallets();
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
+      {/* Cabeçalho */}
+      <div className="flex items-center justify-between mb-6 md:mb-8 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">My Wallets</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your financial wallets
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Minhas Carteiras</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Gerencie suas carteiras financeiras
           </p>
         </div>
         <Button
           asChild
-          className="bg-brand-primary hover:bg-brand-primary/90"
+          className="bg-brand-primary hover:bg-brand-primary/90 min-h-10"
         >
           <Link href="/wallets/new">
             <Plus className="mr-2 h-4 w-4" />
-            New wallet
+            Nova carteira
           </Link>
         </Button>
       </div>
 
-      {/* Wallet grid */}
+      {/* Grade de carteiras */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -128,9 +129,9 @@ export default function WalletsPage() {
         </div>
       ) : isError ? (
         <div className="text-center py-16">
-          <p className="text-muted-foreground">Could not load wallets.</p>
+          <p className="text-muted-foreground text-sm">Não foi possível carregar as carteiras.</p>
           <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
-            Try again
+            Tentar novamente
           </Button>
         </div>
       ) : wallets && wallets.length > 0 ? (
@@ -140,16 +141,16 @@ export default function WalletsPage() {
           ))}
         </div>
       ) : (
-        /* Empty state */
-        <div className="flex flex-col items-center justify-center py-20 text-center">
+        /* Estado vazio */
+        <div className="flex flex-col items-center justify-center py-20 text-center px-4">
           <div className="w-16 h-16 rounded-2xl bg-brand-primary-50 flex items-center justify-center mb-4">
             <Wallet className="h-8 w-8 text-brand-primary" />
           </div>
           <h2 className="text-xl font-semibold text-foreground mb-2">
-            No wallets yet
+            Nenhuma carteira ainda
           </h2>
-          <p className="text-muted-foreground mb-6 max-w-sm">
-            Create your first wallet to start tracking your finances.
+          <p className="text-muted-foreground mb-6 max-w-sm text-sm">
+            Crie sua primeira carteira para começar a controlar suas finanças.
           </p>
           <Button
             asChild
@@ -157,7 +158,7 @@ export default function WalletsPage() {
           >
             <Link href="/wallets/new">
               <Plus className="mr-2 h-4 w-4" />
-              Create wallet
+              Criar carteira
             </Link>
           </Button>
         </div>

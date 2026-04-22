@@ -41,6 +41,9 @@ export class FaturaResponseDto {
   @ApiProperty()
   walletId: string;
 
+  @ApiPropertyOptional({ nullable: true })
+  categoryId: string | null;
+
   @ApiProperty()
   referenceMonth: string;
 
