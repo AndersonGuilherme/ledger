@@ -43,7 +43,7 @@ import {
   type DateFilterValue,
 } from "@/components/dashboard/dashboard-date-filter";
 import { cn } from "@/lib/utils";
-import type { Transaction, DashboardMonthlyTrendItem } from "@/types/api";
+import type { Transaction, DashboardMonthlyTrendItem, DashboardView } from "@/types/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -157,11 +157,19 @@ function TransactionRow({
 
 const DONUT_COLORS = ["#ef4444","#f97316","#f59e0b","#84cc16","#22c55e","#06b6d4","#6366f1","#a855f7"];
 
-function MonthlyBarChart({ data, currencyCode }: { data: DashboardMonthlyTrendItem[]; currencyCode: string }) {
+function MonthlyBarChart({
+  data,
+  currencyCode,
+  view,
+}: {
+  data: DashboardMonthlyTrendItem[];
+  currencyCode: string;
+  view: DashboardView;
+}) {
   const chartData = data.map((d) => ({
     name: MONTH_NAMES[d.month - 1],
-    Receitas: d.income,
-    Despesas: d.expenses,
+    Receitas: d[view].income,
+    Despesas: d[view].expenses,
   }));
 
   const fmt = (v: unknown) => formatAmount(Number(v), currencyCode);
@@ -219,46 +227,43 @@ function CategoryDonut({ data, currencyCode }: { data: { categoryId: string | nu
   );
 }
 
-// ─── DEPRECATED pure-CSS chart (kept for type reference, replaced above) ─────
+// ─── View Toggle (Confirmado / Projetado) ────────────────────────────────────
 
-function MiniBarChart({
-  data,
-  currencyCode,
+function ViewToggle({
+  value,
+  onChange,
 }: {
-  data: DashboardMonthlyTrendItem[];
-  currencyCode: string;
+  value: DashboardView;
+  onChange: (v: DashboardView) => void;
 }) {
-  void currencyCode;
-  const maxValue = Math.max(...data.flatMap((d) => [d.income, d.expenses]), 1);
-
+  const options: { value: DashboardView; label: string; hint: string }[] = [
+    { value: "projected", label: "Projetado", hint: "Inclui pendentes e vencimentos futuros" },
+    { value: "confirmed", label: "Confirmado", hint: "Apenas transações pagas" },
+  ];
   return (
-    <div className="flex items-end gap-1.5 h-32 w-full pt-2">
-      {data.map((item, i) => {
-        const incomeH = Math.round((item.income / maxValue) * 100);
-        const expenseH = Math.round((item.expenses / maxValue) * 100);
-        const isLast = i === data.length - 1;
-
+    <div
+      role="tablist"
+      aria-label="Visão do painel"
+      className="inline-flex items-center gap-1 rounded-full border bg-muted/40 p-1 shadow-sm"
+    >
+      {options.map((opt) => {
+        const active = opt.value === value;
         return (
-          <div key={`${item.year}-${item.month}`} className="flex-1 flex flex-col items-center gap-1.5 group relative">
-            {/* Bars */}
-            <div className="flex items-end gap-0.5 w-full h-[100px]">
-              <div
-                className={`flex-1 rounded-t-sm transition-all duration-700 ${isLast ? "bg-emerald-500" : "bg-emerald-200"}`}
-                style={{ height: `${incomeH}%`, minHeight: item.income > 0 ? "3px" : "0" }}
-              />
-              <div
-                className={`flex-1 rounded-t-sm transition-all duration-700 ${isLast ? "bg-red-400" : "bg-red-200"}`}
-                style={{ height: `${expenseH}%`, minHeight: item.expenses > 0 ? "3px" : "0" }}
-              />
-            </div>
-
-            {/* Month label */}
-            <span className={`text-[10px] font-medium transition-colors ${
-              isLast ? "text-foreground font-bold" : "text-muted-foreground"
-            }`}>
-              {MONTH_NAMES[item.month - 1]}
-            </span>
-          </div>
+          <button
+            key={opt.value}
+            role="tab"
+            aria-selected={active}
+            title={opt.hint}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "px-3 py-1 text-xs font-semibold rounded-full transition-all",
+              active
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {opt.label}
+          </button>
         );
       })}
     </div>
@@ -362,6 +367,7 @@ export default function WalletDashboardPage() {
   const walletId = params?.walletId as string;
 
   const [dateFilter, setDateFilter] = useState<DateFilterValue>(getDefaultDateFilter);
+  const [view, setView] = useState<DashboardView>("projected");
   const dashboardParams = filterValueToParams(dateFilter);
 
   const { data: wallet, isLoading: walletLoading } = useWallet(walletId);
@@ -413,11 +419,14 @@ export default function WalletDashboardPage() {
                 </span>
               </div>
             </div>
-            <DashboardDateFilter
-              value={dateFilter}
-              onChange={(v) => setDateFilter(v)}
-              onReset={() => setDateFilter(getDefaultDateFilter())}
-            />
+            <div className="flex flex-col gap-2 sm:items-end">
+              <ViewToggle value={view} onChange={setView} />
+              <DashboardDateFilter
+                value={dateFilter}
+                onChange={(v) => setDateFilter(v)}
+                onReset={() => setDateFilter(getDefaultDateFilter())}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -480,7 +489,7 @@ export default function WalletDashboardPage() {
                     Receitas
                   </span>
                   <span className="font-bold text-sm text-emerald-600 tabular-nums">
-                    +{formatAmount(dashboard.currentMonth.income, currencyCode)}
+                    +{formatAmount(dashboard.currentMonth[view].income, currencyCode)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-2 rounded-lg hover:bg-muted/30 transition-colors -mx-1 px-1">
@@ -491,12 +500,12 @@ export default function WalletDashboardPage() {
                     Despesas
                   </span>
                   <span className="font-bold text-sm text-red-500 tabular-nums">
-                    −{formatAmount(dashboard.currentMonth.expenses, currencyCode)}
+                    −{formatAmount(dashboard.currentMonth[view].expenses, currencyCode)}
                   </span>
                 </div>
                 <div className="pt-2 border-t flex items-center justify-between">
                   <span className="text-sm font-semibold text-foreground">Saldo</span>
-                  <NetIndicator net={dashboard.currentMonth.net} currencyCode={currencyCode} />
+                  <NetIndicator net={dashboard.currentMonth[view].net} currencyCode={currencyCode} />
                 </div>
               </>
             ) : (
@@ -534,7 +543,7 @@ export default function WalletDashboardPage() {
                     Receitas no Ano
                   </span>
                   <span className="font-bold text-sm text-emerald-600 tabular-nums">
-                    +{formatAmount(dashboard.currentYear.income, currencyCode)}
+                    +{formatAmount(dashboard.currentYear[view].income, currencyCode)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-2 rounded-lg hover:bg-muted/30 transition-colors -mx-1 px-1">
@@ -545,12 +554,12 @@ export default function WalletDashboardPage() {
                     Despesas no Ano
                   </span>
                   <span className="font-bold text-sm text-red-500 tabular-nums">
-                    −{formatAmount(dashboard.currentYear.expenses, currencyCode)}
+                    −{formatAmount(dashboard.currentYear[view].expenses, currencyCode)}
                   </span>
                 </div>
                 <div className="pt-2 border-t flex items-center justify-between">
                   <span className="text-sm font-semibold text-foreground">Saldo no Ano</span>
-                  <NetIndicator net={dashboard.currentYear.net} currencyCode={currencyCode} />
+                  <NetIndicator net={dashboard.currentYear[view].net} currencyCode={currencyCode} />
                 </div>
               </>
             ) : (
@@ -588,7 +597,7 @@ export default function WalletDashboardPage() {
             </div>
           ) : dashboard && dashboard.monthlyTrend.length > 0 ? (
             <>
-              <MonthlyBarChart data={dashboard.monthlyTrend} currencyCode={currencyCode} />
+              <MonthlyBarChart data={dashboard.monthlyTrend} currencyCode={currencyCode} view={view} />
               <div className="flex items-center gap-5 mt-1">
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <div className="w-3 h-3 rounded-sm bg-emerald-400" />

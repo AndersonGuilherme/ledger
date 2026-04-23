@@ -1,5 +1,5 @@
 # =============================================================================
-# Ledger API — Multi-stage Dockerfile
+# Whalet API — Multi-stage Dockerfile
 #
 # Build context: monorepo root (.)
 # EasyPanel config:
@@ -13,6 +13,7 @@
 # =============================================================================
 FROM node:20-alpine AS deps
 
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
@@ -45,6 +46,7 @@ RUN pnpm build
 # =============================================================================
 FROM node:20-alpine AS runner
 
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 ENV NODE_ENV=production

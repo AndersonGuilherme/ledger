@@ -1,4 +1,4 @@
-# Ledger — Personal Finance Wallets
+# Whalet — Personal Finance Wallets
 
 Sistema de gestão financeira pessoal baseado em carteiras. Permite múltiplas carteiras por usuário, compartilhamento com permissões, controle de cartões de crédito, parcelamentos e transferências rastreáveis entre carteiras.
 
@@ -6,24 +6,24 @@ Sistema de gestão financeira pessoal baseado em carteiras. Permite múltiplas c
 
 ## Stack
 
-| Camada | Tecnologia |
-|---|---|
-| Backend | NestJS (Node 20) |
-| Frontend | Next.js _(em breve)_ |
-| Banco de dados | PostgreSQL 16 + Prisma ORM |
-| Cache / Notificações | Redis 7 |
-| Fila de emails | RabbitMQ 3.13 |
-| Email transacional | Resend |
-| Package manager | pnpm workspaces |
+| Camada               | Tecnologia                 |
+| -------------------- | -------------------------- |
+| Backend              | NestJS (Node 20)           |
+| Frontend             | Next.js _(em breve)_       |
+| Banco de dados       | PostgreSQL 16 + Prisma ORM |
+| Cache / Notificações | Redis 7                    |
+| Fila de emails       | RabbitMQ 3.13              |
+| Email transacional   | Resend                     |
+| Package manager      | pnpm workspaces            |
 
 ---
 
 ## Estrutura do monorepo
 
 ```
-ledger/
+whalet/
 ├── apps/
-│   ├── api/                  # Backend NestJS (@ledger/api)
+│   ├── api/                  # Backend NestJS (@whalet/api)
 │   │   ├── prisma/
 │   │   │   ├── schema.prisma
 │   │   │   └── seed.ts
@@ -63,7 +63,7 @@ ledger/
 
 ```bash
 git clone <url-do-repo>
-cd ledger
+cd whalet
 ```
 
 ### 2. Instale as dependências
@@ -79,6 +79,7 @@ pnpm env:setup
 ```
 
 Esse comando faz duas coisas:
+
 - Copia `.env.example` para `.env` na raiz do monorepo
 - Cria o symlink `apps/api/.env → ../../.env` (necessário para o Prisma CLI encontrar as variáveis)
 
@@ -99,9 +100,10 @@ pnpm docker:up
 ```
 
 Isso inicia:
+
 - PostgreSQL na porta `5432`
 - Redis na porta `6379`
-- RabbitMQ na porta `5672` (management UI em `http://localhost:15672` — login: `ledger/ledger`)
+- RabbitMQ na porta `5672` (management UI em `http://localhost:15672` — login: `whalet/whalet`)
 
 Aguarde ~10 segundos até os containers estarem saudáveis.
 
@@ -129,36 +131,36 @@ Execute todos os scripts a partir da **raiz do monorepo**.
 
 ### Desenvolvimento
 
-| Script | Descrição |
-|---|---|
-| `pnpm dev` | Inicia a API em modo watch |
-| `pnpm build` | Compila a API para produção |
+| Script           | Descrição                              |
+| ---------------- | -------------------------------------- |
+| `pnpm dev`       | Inicia a API em modo watch             |
+| `pnpm build`     | Compila a API para produção            |
 | `pnpm typecheck` | Verifica tipos TypeScript sem compilar |
-| `pnpm lint` | Lint + autofix |
-| `pnpm test` | Roda os testes |
+| `pnpm lint`      | Lint + autofix                         |
+| `pnpm test`      | Roda os testes                         |
 
 ### Banco de dados
 
-| Script | Descrição |
-|---|---|
-| `pnpm prisma:migrate` | Cria e aplica uma nova migration (dev) |
-| `pnpm prisma:migrate:deploy` | Aplica migrations pendentes (produção) |
-| `pnpm prisma:generate` | Regenera o cliente Prisma após mudar o schema |
-| `pnpm prisma:seed` | Popula o banco com dados de desenvolvimento |
-| `pnpm prisma:studio` | Abre o Prisma Studio (GUI do banco) |
+| Script                       | Descrição                                     |
+| ---------------------------- | --------------------------------------------- |
+| `pnpm prisma:migrate`        | Cria e aplica uma nova migration (dev)        |
+| `pnpm prisma:migrate:deploy` | Aplica migrations pendentes (produção)        |
+| `pnpm prisma:generate`       | Regenera o cliente Prisma após mudar o schema |
+| `pnpm prisma:seed`           | Popula o banco com dados de desenvolvimento   |
+| `pnpm prisma:studio`         | Abre o Prisma Studio (GUI do banco)           |
 
 ### Docker
 
-| Script | Descrição |
-|---|---|
-| `pnpm docker:up` | Sobe a infraestrutura local em background |
-| `pnpm docker:down` | Para e remove os containers |
-| `pnpm docker:logs` | Stream dos logs dos containers |
+| Script             | Descrição                                 |
+| ------------------ | ----------------------------------------- |
+| `pnpm docker:up`   | Sobe a infraestrutura local em background |
+| `pnpm docker:down` | Para e remove os containers               |
+| `pnpm docker:logs` | Stream dos logs dos containers            |
 
 ### Setup
 
-| Script | Descrição |
-|---|---|
+| Script           | Descrição                                                        |
+| ---------------- | ---------------------------------------------------------------- |
 | `pnpm env:setup` | Cria `.env` e configura symlink da API (rodar uma vez por clone) |
 
 ---
@@ -178,20 +180,20 @@ apps/api/.env.example   ← template de referência para produção (EasyPanel)
 
 ### Variáveis da API
 
-| Variável | Descrição | Obrigatória |
-|---|---|---|
-| `DATABASE_URL` | Connection string do PostgreSQL | Sim |
-| `REDIS_URL` | URL de conexão do Redis | Sim |
-| `RABBITMQ_URL` | URL de conexão do RabbitMQ (AMQP) | Sim |
-| `RESEND_API_KEY` | Chave da API do Resend | Sim |
-| `EMAIL_FROM` | Endereço de remetente dos emails | Sim |
-| `PORT` | Porta HTTP da API (default: `3000`) | Não |
-| `NODE_ENV` | Ambiente (`development` / `production`) | Não |
-| `SESSION_TTL_DAYS` | Validade da sessão em dias (default: `30`) | Não |
-| `OTP_TTL_MINUTES` | Validade do OTP em minutos (default: `10`) | Não |
-| `OTP_MAX_ATTEMPTS` | Tentativas máximas por OTP (default: `3`) | Não |
-| `OTP_RATE_LIMIT_MAX` | Máximo de requests OTP por janela (default: `3`) | Não |
-| `OTP_RATE_LIMIT_WINDOW_MINUTES` | Janela de rate limit em minutos (default: `10`) | Não |
+| Variável                        | Descrição                                        | Obrigatória |
+| ------------------------------- | ------------------------------------------------ | ----------- |
+| `DATABASE_URL`                  | Connection string do PostgreSQL                  | Sim         |
+| `REDIS_URL`                     | URL de conexão do Redis                          | Sim         |
+| `RABBITMQ_URL`                  | URL de conexão do RabbitMQ (AMQP)                | Sim         |
+| `RESEND_API_KEY`                | Chave da API do Resend                           | Sim         |
+| `EMAIL_FROM`                    | Endereço de remetente dos emails                 | Sim         |
+| `PORT`                          | Porta HTTP da API (default: `3000`)              | Não         |
+| `NODE_ENV`                      | Ambiente (`development` / `production`)          | Não         |
+| `SESSION_TTL_DAYS`              | Validade da sessão em dias (default: `30`)       | Não         |
+| `OTP_TTL_MINUTES`               | Validade do OTP em minutos (default: `10`)       | Não         |
+| `OTP_MAX_ATTEMPTS`              | Tentativas máximas por OTP (default: `3`)        | Não         |
+| `OTP_RATE_LIMIT_MAX`            | Máximo de requests OTP por janela (default: `3`) | Não         |
+| `OTP_RATE_LIMIT_WINDOW_MINUTES` | Janela de rate limit em minutos (default: `10`)  | Não         |
 
 ---
 
@@ -199,23 +201,24 @@ apps/api/.env.example   ← template de referência para produção (EasyPanel)
 
 Com a API rodando, acesse:
 
-| URL | Descrição |
-|---|---|
-| `http://localhost:3000/docs` | Scalar UI — documentação interativa |
+| URL                               | Descrição                                       |
+| --------------------------------- | ----------------------------------------------- |
+| `http://localhost:3000/docs`      | Scalar UI — documentação interativa             |
 | `http://localhost:3000/docs/json` | OpenAPI spec em JSON (para geração de clientes) |
 
 ---
 
 ## Endpoints da API (Auth)
 
-| Método | Rota | Descrição | Auth |
-|---|---|---|---|
-| `POST` | `/auth/request-otp` | Solicita código OTP por email | Não |
-| `POST` | `/auth/verify-otp` | Valida OTP e retorna session token | Não |
-| `GET` | `/auth/me` | Retorna o usuário autenticado | Sim |
-| `POST` | `/auth/logout` | Invalida a sessão | Sim |
+| Método | Rota                | Descrição                          | Auth |
+| ------ | ------------------- | ---------------------------------- | ---- |
+| `POST` | `/auth/request-otp` | Solicita código OTP por email      | Não  |
+| `POST` | `/auth/verify-otp`  | Valida OTP e retorna session token | Não  |
+| `GET`  | `/auth/me`          | Retorna o usuário autenticado      | Sim  |
+| `POST` | `/auth/logout`      | Invalida a sessão                  | Sim  |
 
 Endpoints autenticados exigem o header:
+
 ```
 Authorization: Bearer <sessionToken>
 ```
@@ -228,25 +231,25 @@ Authorization: Bearer <sessionToken>
 
 Crie os seguintes serviços no EasyPanel:
 
-| Serviço | Tipo | Configuração |
-|---|---|---|
-| `ledger-postgres` | PostgreSQL | Database Service gerenciado pelo EasyPanel |
-| `ledger-redis` | Redis | Redis Service gerenciado pelo EasyPanel |
-| `ledger-rabbitmq` | App | Image: `rabbitmq:3.13-alpine` |
-| `ledger-api` | App | Build via Dockerfile (ver abaixo) |
+| Serviço           | Tipo       | Configuração                               |
+| ----------------- | ---------- | ------------------------------------------ |
+| `whalet-postgres` | PostgreSQL | Database Service gerenciado pelo EasyPanel |
+| `whalet-redis`    | Redis      | Redis Service gerenciado pelo EasyPanel    |
+| `whalet-rabbitmq` | App        | Image: `rabbitmq:3.13-alpine`              |
+| `whalet-api`      | App        | Build via Dockerfile (ver abaixo)          |
 
-### Configuração do serviço `ledger-api`
+### Configuração do serviço `whalet-api`
 
-| Campo | Valor |
-|---|---|
-| **Source** | Git repository |
-| **Branch** | `main` |
-| **Build method** | Dockerfile |
-| **Dockerfile path** | `apps/api/Dockerfile` |
-| **Build context** | `.` _(raiz do repositório)_ |
-| **Port** | `3000` |
+| Campo               | Valor                       |
+| ------------------- | --------------------------- |
+| **Source**          | Git repository              |
+| **Branch**          | `main`                      |
+| **Build method**    | Dockerfile                  |
+| **Dockerfile path** | `apps/api/Dockerfile`       |
+| **Build context**   | `.` _(raiz do repositório)_ |
+| **Port**            | `3000`                      |
 
-### Variáveis de ambiente no EasyPanel (`ledger-api`)
+### Variáveis de ambiente no EasyPanel (`whalet-api`)
 
 Use os hostnames internos dos serviços EasyPanel (não `localhost`):
 
@@ -254,9 +257,9 @@ Use os hostnames internos dos serviços EasyPanel (não `localhost`):
 NODE_ENV=production
 PORT=3000
 
-DATABASE_URL=postgresql://USER:PASSWORD@ledger-postgres:5432/ledger?schema=public
-REDIS_URL=redis://ledger-redis:6379
-RABBITMQ_URL=amqp://USER:PASSWORD@ledger-rabbitmq:5672
+DATABASE_URL=postgresql://USER:PASSWORD@whalet-postgres:5432/whalet?schema=public
+REDIS_URL=redis://whalet-redis:6379
+RABBITMQ_URL=amqp://USER:PASSWORD@whalet-rabbitmq:5672
 
 RESEND_API_KEY=re_xxxxxxxxxxxx
 EMAIL_FROM=noreply@seudominio.com
@@ -318,7 +321,7 @@ pnpm test               # todos os testes passando
 ## Novo desenvolvedor no time
 
 ```bash
-git clone <url-do-repo> && cd ledger
+git clone <url-do-repo> && cd whalet
 pnpm install
 pnpm env:setup
 # Edite .env: preencha RESEND_API_KEY e EMAIL_FROM

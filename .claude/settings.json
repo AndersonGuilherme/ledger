@@ -11,7 +11,7 @@
       "Bash(echo \"EXIT: $?\")",
       "Read(//home/anderson/**)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('packageManager', 'not set'\\)\\)\")",
-      "Bash(~/.local/share/pnpm/pnpm --filter @ledger/shared build)",
+      "Bash(~/.local/share/pnpm/pnpm --filter @whalet/shared build)",
       "Bash(pnpm c:*)",
       "Bash(pnpm env:*)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
@@ -19,7 +19,11 @@
       "Bash(pnpm prisma:migrate)",
       "Bash(pnpm prisma:migrate:deploy)",
       "Bash(kill 15944 15969 16003)",
-      "Bash(PGPASSWORD=ledger psql -h localhost -U ledger -d ledger -c \"\\\\dt public.*\")"
+      "Bash(PGPASSWORD=whalet psql -h localhost -U whalet -d whalet -c \"\\\\dt public.*\")",
+      "Bash(pnpm --filter @whalet/web exec tsc --noEmit)",
+      "Bash(pnpm --filter @ledger/api build)",
+      "Bash(pnpm --filter ./apps/api build)",
+      "Bash(pnpm --filter ./apps/web exec tsc --noEmit)"
     ],
     "deny": [
       "Bash(rm -rf /)",
@@ -48,8 +52,8 @@
       "Bash(docker *)"
     ],
     "additionalDirectories": [
-      "/home/anderson/apps/ledger/apps/web/src/app/(protected)/wallets",
-      "/home/anderson/apps/ledger/apps/web/src/app/(protected)/wallets/[id]"
+      "/home/anderson/apps/whalet/apps/web/src/app/(protected)/wallets",
+      "/home/anderson/apps/whalet/apps/web/src/app/(protected)/wallets/[id]"
     ]
   },
   "defaultMode": "acceptEdits"

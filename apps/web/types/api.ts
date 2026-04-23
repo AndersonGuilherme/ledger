@@ -232,10 +232,17 @@ export interface Fatura {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-export interface DashboardPeriodSummary {
+export interface DashboardFlow {
   income: number;
   expenses: number;
   net: number;
+}
+
+export type DashboardView = "confirmed" | "projected";
+
+export interface DashboardPeriodSummary {
+  confirmed: DashboardFlow;
+  projected: DashboardFlow;
 }
 
 export interface DashboardMonthSummary extends DashboardPeriodSummary {
@@ -257,8 +264,8 @@ export interface DashboardCategoryBreakdownItem {
 export interface DashboardMonthlyTrendItem {
   month: number;
   year: number;
-  income: number;
-  expenses: number;
+  confirmed: DashboardFlow;
+  projected: DashboardFlow;
 }
 
 export interface DashboardResponse {

@@ -1,14 +1,22 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class DashboardPeriodSummaryDto {
-  @ApiProperty({ description: 'Total income (paid transactions) in the period', example: 5000 })
+export class DashboardFlowDto {
+  @ApiProperty({ description: 'Total income in the period', example: 5000 })
   income!: number;
 
-  @ApiProperty({ description: 'Total expenses (paid transactions, positive value) in the period', example: 2500 })
+  @ApiProperty({ description: 'Total expenses in the period (positive value)', example: 2500 })
   expenses!: number;
 
   @ApiProperty({ description: 'Net = income - expenses', example: 2500 })
   net!: number;
+}
+
+export class DashboardPeriodSummaryDto {
+  @ApiProperty({ type: DashboardFlowDto, description: 'Realized cash flow — status=paid, aggregated by paidAt' })
+  confirmed!: DashboardFlowDto;
+
+  @ApiProperty({ type: DashboardFlowDto, description: 'Expected cash flow — status!=canceled, aggregated by dueDate' })
+  projected!: DashboardFlowDto;
 }
 
 export class DashboardMonthSummaryDto extends DashboardPeriodSummaryDto {
@@ -31,7 +39,7 @@ export class DashboardCategoryBreakdownItemDto {
   @ApiProperty({ nullable: true })
   categoryName!: string | null;
 
-  @ApiProperty({ description: 'Total expenses for this category in the current month', example: 450 })
+  @ApiProperty({ description: 'Total expenses (projected) for this category in the period', example: 450 })
   totalExpenses!: number;
 
   @ApiProperty({ example: 5 })
@@ -45,11 +53,11 @@ export class DashboardMonthlyTrendItemDto {
   @ApiProperty({ example: 2026 })
   year!: number;
 
-  @ApiProperty({ description: 'Total paid income in this month', example: 5000 })
-  income!: number;
+  @ApiProperty({ type: DashboardFlowDto })
+  confirmed!: DashboardFlowDto;
 
-  @ApiProperty({ description: 'Total paid expenses in this month (positive value)', example: 2500 })
-  expenses!: number;
+  @ApiProperty({ type: DashboardFlowDto })
+  projected!: DashboardFlowDto;
 }
 
 export class DashboardResponseDto {
@@ -62,6 +70,6 @@ export class DashboardResponseDto {
   @ApiProperty({ type: [DashboardCategoryBreakdownItemDto] })
   categoryBreakdown!: DashboardCategoryBreakdownItemDto[];
 
-  @ApiProperty({ type: [DashboardMonthlyTrendItemDto], description: 'Last 12 months ending with previous month, ordered oldest to newest' })
+  @ApiProperty({ type: [DashboardMonthlyTrendItemDto], description: 'Months in the requested range, ordered oldest to newest' })
   monthlyTrend!: DashboardMonthlyTrendItemDto[];
 }

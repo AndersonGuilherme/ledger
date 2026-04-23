@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Definir a arquitetura técnica inicial do projeto Ledger antes da implementação.
+Definir a arquitetura técnica inicial do projeto Whalet antes da implementação.
 
 ## Participantes
 
@@ -20,9 +20,10 @@ Definir a arquitetura técnica inicial do projeto Ledger antes da implementaçã
 
 ## Prompt
 
-Tech Lead, precisamos definir a arquitetura inicial do projeto Ledger.
+Tech Lead, precisamos definir a arquitetura inicial do projeto Whalet.
 
 Contexto:
+
 - Projeto ainda sem código
 - Descobertas de produto já fechadas (auth, wallets, categories, entries, dashboard)
 - Stack desejada: Next.js + NestJS + PostgreSQL + Prisma
@@ -48,10 +49,12 @@ Execute:
 4. Consolide uma arquitetura final
 
 Importante:
+
 - foco em MVP
 - evitar overengineering
 - priorizar simplicidade com possibilidade de evolução
 
 Formato de saída:
+
 - Documento técnico consolidado
 - Pronto para salvar em docs/architecture.md

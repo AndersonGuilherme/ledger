@@ -1,9 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding database...');
+  console.log("Seeding database...");
 
   // Clean up in correct order (respect FK constraints)
   await prisma.authSession.deleteMany();
@@ -13,18 +13,18 @@ async function main() {
   // Seed a dev user for local testing
   const devUser = await prisma.user.create({
     data: {
-      email: 'dev@ledger.local',
-      status: 'active',
+      email: "dev@whalet.local",
+      status: "active",
     },
   });
 
   console.log(`Created dev user: ${devUser.email} (id: ${devUser.id})`);
-  console.log('Seed complete.');
+  console.log("Seed complete.");
 }
 
 main()
   .catch((e) => {
-    console.error('Seed failed:', e);
+    console.error("Seed failed:", e);
     process.exit(1);
   })
   .finally(async () => {

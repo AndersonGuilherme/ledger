@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
-import { OtpEmailPayload } from './email.types';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Resend } from "resend";
+import { OtpEmailPayload } from "./email.types";
 
 @Injectable()
 export class ResendService {
@@ -10,8 +10,9 @@ export class ResendService {
   private readonly from: string;
 
   constructor(private readonly config: ConfigService) {
-    const apiKey = this.config.get<string>('app.email.resendApiKey');
-    this.from = this.config.get<string>('app.email.from') ?? 'noreply@ledger.local';
+    const apiKey = this.config.get<string>("app.email.resendApiKey");
+    this.from =
+      this.config.get<string>("app.email.from") ?? "noreply@whalet.local";
     this.resend = new Resend(apiKey);
   }
 
@@ -24,7 +25,7 @@ export class ResendService {
     await this.resend.emails.send({
       from: this.from,
       to: payload.to,
-      subject: 'Your Ledger login code',
+      subject: "Your Whalet login code",
       html: this.buildOtpEmailHtml(payload),
     });
   }
@@ -35,12 +36,12 @@ export class ResendService {
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Your Ledger login code</title>
+    <title>Your Whalet login code</title>
   </head>
   <body style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
     <h2 style="color: #1a1a1a;">Your login code</h2>
     <p style="color: #444; font-size: 16px;">
-      Use the code below to sign in to Ledger.
+      Use the code below to sign in to Whalet.
       This code expires in <strong>${payload.expiresInMinutes} minutes</strong>.
     </p>
     <div style="

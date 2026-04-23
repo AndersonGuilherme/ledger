@@ -22,6 +22,7 @@ import {
   DashboardResponseDto,
   DashboardCategoryBreakdownItemDto,
   DashboardMonthlyTrendItemDto,
+  DashboardFlowDto,
 } from './dto/dashboard-response.dto';
 import { IBalanceService, BALANCE_SERVICE } from './balance/balance.interface';
 import { WalletMemberRole, WalletType } from '@prisma/client';
@@ -420,85 +421,99 @@ export class WalletsService {
     const rangeStart = new Date(Date.UTC(rangeFromYear, rangeFromMonth - 1, 1));
     const rangeEnd = new Date(Date.UTC(rangeToYear, rangeToMonth, 1)); // exclusive upper bound
 
+    const INCOME_TYPES = ['income', 'transfer_in', 'credit_card_refund'] as const;
+    const EXPENSE_TYPES = ['expense', 'invoice_payment', 'transfer_out'] as const;
+
     // ── Summary month: first month of range ──────────────────────────────────
     const summaryMonthStart = new Date(Date.UTC(rangeFromYear, rangeFromMonth - 1, 1));
-    const summaryMonthEnd = new Date(Date.UTC(rangeFromYear, rangeFromMonth, 1)); // exclusive
-
-    const [monthIncomeTxs, monthExpenseTxs] = await Promise.all([
-      this.prisma.transaction.findMany({
-        where: {
-          walletId,
-          deletedAt: null,
-          status: 'paid',
-          sign: 1,
-          type: { in: ['income', 'transfer_in', 'credit_card_refund'] },
-          paidAt: { gte: summaryMonthStart, lt: summaryMonthEnd },
-        },
-        select: { amount: true },
-      }),
-      this.prisma.transaction.findMany({
-        where: {
-          walletId,
-          deletedAt: null,
-          status: { not: 'canceled' },
-          sign: -1,
-          type: { in: ['expense', 'invoice_payment', 'transfer_out'] },
-          dueDate: { gte: summaryMonthStart, lt: summaryMonthEnd },
-        },
-        select: { amount: true },
-      }),
-    ]);
-
-    const monthIncome = monthIncomeTxs.reduce((s, t) => s + Number(t.amount), 0);
-    const monthExpenses = monthExpenseTxs.reduce((s, t) => s + Number(t.amount), 0);
+    const summaryMonthEnd = new Date(Date.UTC(rangeFromYear, rangeFromMonth, 1));
 
     // ── Year summary: full calendar year of the from month ───────────────────
     const yearStart = new Date(Date.UTC(rangeFromYear, 0, 1));
-    const yearEnd = new Date(Date.UTC(rangeFromYear + 1, 0, 1)); // exclusive
+    const yearEnd = new Date(Date.UTC(rangeFromYear + 1, 0, 1));
 
-    const [yearIncomeTxs, yearExpenseTxs] = await Promise.all([
-      this.prisma.transaction.findMany({
-        where: {
-          walletId,
-          deletedAt: null,
-          status: 'paid',
-          sign: 1,
-          type: { in: ['income', 'transfer_in', 'credit_card_refund'] },
-          paidAt: { gte: yearStart, lt: yearEnd },
-        },
-        select: { amount: true },
-      }),
-      this.prisma.transaction.findMany({
-        where: {
-          walletId,
-          deletedAt: null,
-          status: { not: 'canceled' },
-          sign: -1,
-          type: { in: ['expense', 'invoice_payment', 'transfer_out'] },
-          dueDate: { gte: yearStart, lt: yearEnd },
-        },
-        select: { amount: true },
-      }),
-    ]);
+    // Widest window covers range, summary month, and summary year
+    const windowStart = new Date(Math.min(rangeStart.getTime(), yearStart.getTime()));
+    const windowEnd = new Date(Math.max(rangeEnd.getTime(), yearEnd.getTime()));
 
-    const yearIncome = yearIncomeTxs.reduce((s, t) => s + Number(t.amount), 0);
-    const yearExpenses = yearExpenseTxs.reduce((s, t) => s + Number(t.amount), 0);
+    // Fetch all relevant transactions once; aggregate in memory.
+    // `projected` bucket keys by dueDate and includes anything not canceled.
+    // `confirmed` bucket keys by paidAt and requires status=paid.
+    const [projectedIncomes, projectedExpenses, confirmedIncomes, confirmedExpenses] =
+      await Promise.all([
+        this.prisma.transaction.findMany({
+          where: {
+            walletId,
+            deletedAt: null,
+            status: { not: 'canceled' },
+            sign: 1,
+            type: { in: [...INCOME_TYPES] },
+            dueDate: { gte: windowStart, lt: windowEnd },
+          },
+          select: { amount: true, dueDate: true },
+        }),
+        this.prisma.transaction.findMany({
+          where: {
+            walletId,
+            deletedAt: null,
+            status: { not: 'canceled' },
+            sign: -1,
+            type: { in: [...EXPENSE_TYPES] },
+            dueDate: { gte: windowStart, lt: windowEnd },
+          },
+          select: { amount: true, dueDate: true, categoryId: true },
+        }),
+        this.prisma.transaction.findMany({
+          where: {
+            walletId,
+            deletedAt: null,
+            status: 'paid',
+            sign: 1,
+            type: { in: [...INCOME_TYPES] },
+            paidAt: { gte: windowStart, lt: windowEnd },
+          },
+          select: { amount: true, paidAt: true },
+        }),
+        this.prisma.transaction.findMany({
+          where: {
+            walletId,
+            deletedAt: null,
+            status: 'paid',
+            sign: -1,
+            type: { in: [...EXPENSE_TYPES] },
+            paidAt: { gte: windowStart, lt: windowEnd },
+          },
+          select: { amount: true, paidAt: true },
+        }),
+      ]);
 
-    // ── Category breakdown (full range, expenses only, by dueDate) ───────────
-    const expenseTxs = await this.prisma.transaction.findMany({
-      where: {
-        walletId,
-        deletedAt: null,
-        status: { not: 'canceled' },
-        sign: -1,
-        dueDate: { gte: rangeStart, lt: rangeEnd },
-        type: { in: ['expense', 'transfer_out', 'invoice_payment'] },
-      },
-      select: { amount: true, categoryId: true },
-    });
+    const sumIn = <T extends { amount: Decimal }>(txs: T[], pred: (t: T) => boolean): number =>
+      txs.reduce((s, t) => (pred(t) ? s + Number(t.amount) : s), 0);
+
+    const inRange = (d: Date | null, start: Date, end: Date): boolean =>
+      d !== null && d >= start && d < end;
+
+    const computeFlow = (start: Date, end: Date): { confirmed: DashboardFlowDto; projected: DashboardFlowDto } => {
+      const projIn = sumIn(projectedIncomes, (t) => inRange(t.dueDate, start, end));
+      const projEx = sumIn(projectedExpenses, (t) => inRange(t.dueDate, start, end));
+      const confIn = sumIn(confirmedIncomes, (t) => inRange(t.paidAt, start, end));
+      const confEx = sumIn(confirmedExpenses, (t) => inRange(t.paidAt, start, end));
+      return {
+        projected: { income: projIn, expenses: projEx, net: projIn - projEx },
+        confirmed: { income: confIn, expenses: confEx, net: confIn - confEx },
+      };
+    };
+
+    const currentMonthFlow = computeFlow(summaryMonthStart, summaryMonthEnd);
+    const currentYearFlow = computeFlow(yearStart, yearEnd);
+
+    // ── Category breakdown (range, projected expenses by dueDate) ────────────
+    const expenseTxsInRange = projectedExpenses.filter((t) =>
+      inRange(t.dueDate, rangeStart, rangeEnd),
+    );
 
     const catMap = new Map<string | null, { total: number; count: number }>();
-    for (const tx of expenseTxs) {
+    for (const tx of expenseTxsInRange) {
       const key = tx.categoryId ?? null;
       const existing = catMap.get(key) ?? { total: 0, count: 0 };
       catMap.set(key, { total: existing.total + Number(tx.amount), count: existing.count + 1 });
@@ -534,51 +549,13 @@ export class WalletsService {
       const mStart = new Date(Date.UTC(mYear, mMonth - 1, 1));
       const mEnd = new Date(Date.UTC(mYear, mMonth, 1));
 
-      const [mIncomeTxs, mExpenseTxs] = await Promise.all([
-        this.prisma.transaction.findMany({
-          where: {
-            walletId,
-            deletedAt: null,
-            status: 'paid',
-            sign: 1,
-            type: { in: ['income', 'transfer_in', 'credit_card_refund'] },
-            paidAt: { gte: mStart, lt: mEnd },
-          },
-          select: { amount: true },
-        }),
-        this.prisma.transaction.findMany({
-          where: {
-            walletId,
-            deletedAt: null,
-            status: { not: 'canceled' },
-            sign: -1,
-            type: { in: ['expense', 'invoice_payment', 'transfer_out'] },
-            dueDate: { gte: mStart, lt: mEnd },
-          },
-          select: { amount: true },
-        }),
-      ]);
-
-      const mIncome = mIncomeTxs.reduce((s, t) => s + Number(t.amount), 0);
-      const mExpenses = mExpenseTxs.reduce((s, t) => s + Number(t.amount), 0);
-
-      trendMonths.push({ month: mMonth, year: mYear, income: mIncome, expenses: mExpenses });
+      const { confirmed, projected } = computeFlow(mStart, mEnd);
+      trendMonths.push({ month: mMonth, year: mYear, confirmed, projected });
     }
 
     return {
-      currentMonth: {
-        month: rangeFromMonth,
-        year: rangeFromYear,
-        income: monthIncome,
-        expenses: monthExpenses,
-        net: monthIncome - monthExpenses,
-      },
-      currentYear: {
-        year: rangeFromYear,
-        income: yearIncome,
-        expenses: yearExpenses,
-        net: yearIncome - yearExpenses,
-      },
+      currentMonth: { month: rangeFromMonth, year: rangeFromYear, ...currentMonthFlow },
+      currentYear: { year: rangeFromYear, ...currentYearFlow },
       categoryBreakdown,
       monthlyTrend: trendMonths,
     };

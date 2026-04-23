@@ -13,7 +13,7 @@ export const useWalletStore = create<WalletStore>()(
       setActiveWallet: (id) => set({ activeWalletId: id }),
     }),
     {
-      name: "ledger-active-wallet",
-    }
-  )
+      name: "whalet-active-wallet",
+    },
+  ),
 );
