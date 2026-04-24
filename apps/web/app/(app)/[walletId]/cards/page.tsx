@@ -112,13 +112,13 @@ function formatCents(cents: number): string {
 
 function AggregateCreditBar({ cards }: { cards: import("@/types/api").CreditCard[] }) {
   const activeCards = cards.filter((c) => !c.isArchived && c.creditLimitCents !== null);
-  if (activeCards.length === 0) return null;
-
   const totalLimit = activeCards.reduce((s, c) => s + (c.creditLimitCents ?? 0), 0);
   const totalUsed  = activeCards.reduce((s, c) => s + (c.usedCreditCents ?? 0), 0);
   const totalAvail = totalLimit - totalUsed;
   const pct = totalLimit > 0 ? Math.min(100, Math.round((totalUsed / totalLimit) * 100)) : 0;
   const animPct = useAnimatedWidth(pct, 200);
+
+  if (activeCards.length === 0) return null;
 
   const barColor =
     pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : "bg-emerald-500";
