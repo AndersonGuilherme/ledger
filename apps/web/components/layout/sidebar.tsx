@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   ArrowLeftRight,
   CreditCard,
+  Receipt,
   Settings,
   LogOut,
   Wallet,
@@ -49,6 +50,12 @@ const NAV_ITEMS = [
     label: "Cartões",
     icon: CreditCard,
     href: (walletId: string) => `/${walletId}/cards`,
+    exact: false,
+  },
+  {
+    label: "Faturas",
+    icon: Receipt,
+    href: (walletId: string) => `/${walletId}/faturas`,
     exact: false,
   },
   {

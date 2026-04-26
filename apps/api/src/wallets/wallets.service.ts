@@ -426,13 +426,13 @@ export class WalletsService {
     const rangeEnd = new Date(Date.UTC(rangeToYear, rangeToMonth, 1)); // exclusive upper bound
 
     const INCOME_TYPES = ['income', 'transfer_in', 'credit_card_refund'] as const;
-    // Flow types: cash that actually moves the bank account. invoice_payment is
-    // included because that's when the card debt becomes a real cash outflow.
-    const EXPENSE_TYPES = ['expense', 'invoice_payment', 'transfer_out'] as const;
-    // Spending-by-category types (Fase 3): each card purchase is the categorized
-    // event (not the aggregated invoice_payment). Excluding invoice_payment here
-    // avoids double-counting (purchase + payment of the fatura that contains it).
-    const SPENDING_TYPES = ['expense', 'credit_card_purchase'] as const;
+    // Flow types — every expense the user committed to:
+    //   - direct expense + transfer_out: keyed by dueDate (projected) / paidAt (confirmed)
+    //   - credit_card_purchase: keyed by purchase.purchaseDate (projected) /
+    //     paidAt of the parcela tx (confirmed = fatura settled)
+    // invoice_payment is INTENTIONALLY excluded — it's the cash settlement of
+    // parcelas that are already counted, so including it would double-count.
+    const DIRECT_EXPENSE_TYPES = ['expense', 'transfer_out'] as const;
 
     // ── Summary month: first month of range ──────────────────────────────────
     const summaryMonthStart = new Date(Date.UTC(rangeFromYear, rangeFromMonth - 1, 1));
@@ -447,14 +447,26 @@ export class WalletsService {
     const windowEnd = new Date(Math.max(rangeEnd.getTime(), yearEnd.getTime()));
 
     // Fetch all relevant transactions once; aggregate in memory.
-    // `projected` bucket keys by dueDate and includes anything not canceled.
-    // `confirmed` bucket keys by paidAt and requires status=paid.
+    // Each "direct" bucket keys by dueDate (projected) / paidAt (confirmed).
+    // Card parcelas use `purchase.purchaseDate` for projected (when bought)
+    // and `paidAt` for confirmed (when the fatura was paid).
+    type FlowEntry = { amount: Decimal; date: Date | null; categoryId: string | null };
+    const toFlowEntry = (
+      t: { amount: Decimal; categoryId?: string | null },
+      date: Date | null,
+    ): FlowEntry => ({
+      amount: t.amount,
+      date,
+      categoryId: t.categoryId ?? null,
+    });
+
     const [
       projectedIncomes,
-      projectedExpenses,
+      projectedExpensesDirect,
+      projectedCardParcelas,
       confirmedIncomes,
-      confirmedExpenses,
-      spendingByCategory,
+      confirmedExpensesDirect,
+      confirmedCardParcelas,
     ] = await Promise.all([
       this.prisma.transaction.findMany({
         where: {
@@ -473,10 +485,24 @@ export class WalletsService {
           deletedAt: null,
           status: { not: 'canceled' },
           sign: -1,
-          type: { in: [...EXPENSE_TYPES] },
+          type: { in: [...DIRECT_EXPENSE_TYPES] },
           dueDate: { gte: windowStart, lt: windowEnd },
         },
         select: { amount: true, dueDate: true, categoryId: true },
+      }),
+      this.prisma.transaction.findMany({
+        where: {
+          walletId,
+          deletedAt: null,
+          status: { not: 'canceled' },
+          type: 'credit_card_purchase',
+          purchase: { purchaseDate: { gte: windowStart, lt: windowEnd } },
+        },
+        select: {
+          amount: true,
+          categoryId: true,
+          purchase: { select: { purchaseDate: true } },
+        },
       }),
       this.prisma.transaction.findMany({
         where: {
@@ -495,23 +521,38 @@ export class WalletsService {
           deletedAt: null,
           status: 'paid',
           sign: -1,
-          type: { in: [...EXPENSE_TYPES] },
+          type: { in: [...DIRECT_EXPENSE_TYPES] },
           paidAt: { gte: windowStart, lt: windowEnd },
         },
         select: { amount: true, paidAt: true },
       }),
-      // Fase 3: spending-by-category source (no sign filter — credit_card_purchase has sign=0).
       this.prisma.transaction.findMany({
         where: {
           walletId,
           deletedAt: null,
-          status: { not: 'canceled' },
-          type: { in: [...SPENDING_TYPES] },
-          dueDate: { gte: windowStart, lt: windowEnd },
+          status: 'paid',
+          type: 'credit_card_purchase',
+          paidAt: { gte: windowStart, lt: windowEnd },
         },
-        select: { amount: true, dueDate: true, categoryId: true },
+        select: { amount: true, paidAt: true, categoryId: true },
       }),
     ]);
+
+    // Merge direct expenses + card parcelas into single "expense" feeds.
+    const projectedExpenses: FlowEntry[] = [
+      ...projectedExpensesDirect.map((t) => toFlowEntry(t, t.dueDate)),
+      ...projectedCardParcelas
+        .filter((t) => t.purchase !== null)
+        .map((t) =>
+          toFlowEntry(t, (t.purchase as { purchaseDate: Date }).purchaseDate),
+        ),
+    ];
+    const confirmedExpenses: FlowEntry[] = [
+      ...confirmedExpensesDirect.map((t) => toFlowEntry(t, t.paidAt)),
+      ...confirmedCardParcelas.map((t) => toFlowEntry(t, t.paidAt)),
+    ];
+    // Same data feeds the category breakdown — no separate query needed.
+    const spendingByCategory = projectedExpenses;
 
     const sumIn = <T extends { amount: Decimal }>(txs: T[], pred: (t: T) => boolean): number =>
       txs.reduce((s, t) => (pred(t) ? s + Number(t.amount) : s), 0);
@@ -521,9 +562,9 @@ export class WalletsService {
 
     const computeFlow = (start: Date, end: Date): { confirmed: DashboardFlowDto; projected: DashboardFlowDto } => {
       const projIn = sumIn(projectedIncomes, (t) => inRange(t.dueDate, start, end));
-      const projEx = sumIn(projectedExpenses, (t) => inRange(t.dueDate, start, end));
+      const projEx = sumIn(projectedExpenses, (t) => inRange(t.date, start, end));
       const confIn = sumIn(confirmedIncomes, (t) => inRange(t.paidAt, start, end));
-      const confEx = sumIn(confirmedExpenses, (t) => inRange(t.paidAt, start, end));
+      const confEx = sumIn(confirmedExpenses, (t) => inRange(t.date, start, end));
       return {
         projected: { income: projIn, expenses: projEx, net: projIn - projEx },
         confirmed: { income: confIn, expenses: confEx, net: confIn - confEx },
@@ -533,11 +574,11 @@ export class WalletsService {
     const currentMonthFlow = computeFlow(summaryMonthStart, summaryMonthEnd);
     const currentYearFlow = computeFlow(yearStart, yearEnd);
 
-    // ── Category breakdown (range, spending events by dueDate) ────────────────
-    // Uses SPENDING_TYPES (expense + credit_card_purchase) — each card purchase
-    // contributes to its OWN category, replacing the old fatura-aggregate view.
+    // ── Category breakdown (range, spending events by their semantic date) ──
+    // Same feed used by the flow chart: direct expenses by dueDate + card
+    // parcelas by their parent purchase.purchaseDate.
     const expenseTxsInRange = spendingByCategory.filter((t) =>
-      inRange(t.dueDate, rangeStart, rangeEnd),
+      inRange(t.date, rangeStart, rangeEnd),
     );
 
     const catMap = new Map<string | null, { total: number; count: number }>();
@@ -581,11 +622,37 @@ export class WalletsService {
       trendMonths.push({ month: mMonth, year: mYear, confirmed, projected });
     }
 
+    // ── Credit card spend (current month) ────────────────────────────────────
+    // Sum of credit_card_purchase rows whose PARENT purchase happened in the
+    // summary month — the user's intuition is "I made R$100 in card spending
+    // this month", regardless of when each parcela falls due. These are
+    // commitments, not yet cash outflows — surfaced separately so a fresh
+    // purchase is visible immediately, even before the fatura is paid.
+    const cardAgg = await this.prisma.transaction.aggregate({
+      where: {
+        walletId,
+        deletedAt: null,
+        status: { not: 'canceled' },
+        type: 'credit_card_purchase',
+        purchase: {
+          purchaseDate: { gte: summaryMonthStart, lt: summaryMonthEnd },
+        },
+      },
+      _sum: { amount: true },
+      _count: true,
+    });
+
+    const creditCard = {
+      monthSpendCents: Math.round(Number(cardAgg._sum.amount ?? 0) * 100),
+      monthTransactionCount: cardAgg._count,
+    };
+
     return {
       currentMonth: { month: rangeFromMonth, year: rangeFromYear, ...currentMonthFlow },
       currentYear: { year: rangeFromYear, ...currentYearFlow },
       categoryBreakdown,
       monthlyTrend: trendMonths,
+      creditCard,
     };
   }
 

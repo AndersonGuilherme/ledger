@@ -75,6 +75,17 @@ const STATUS_LABELS: Record<TransactionStatus, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function firstDayOfCurrentMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function lastDayOfCurrentMonth(): string {
+  const d = new Date();
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
+}
+
 function formatAmount(amount: number, currencyCode: string): string {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -273,8 +284,16 @@ function CreateTransactionDialog({
           reset();
           onOpenChange(false);
         },
-        onError: () => {
-          toast.error("Não foi possível criar a transação. Tente novamente.");
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { message?: string } } })
+            ?.response?.data?.message;
+          if (msg === "INSUFFICIENT_FUNDS") {
+            toast.error("Saldo insuficiente na conta selecionada.");
+          } else if (msg === "BANK_ACCOUNT_REQUIRED") {
+            toast.error("Selecione a conta bancária para esta transação.");
+          } else {
+            toast.error("Não foi possível criar a transação. Tente novamente.");
+          }
         },
       }
     );
@@ -933,6 +952,10 @@ function TransferDialog({
             toast.error("Você não tem acesso à carteira de destino.");
           } else if (msg === "TRANSFER_COUNTERPART_BANK_ACCOUNT_NOT_FOUND") {
             toast.error("Conta de destino não encontrada.");
+          } else if (msg === "INSUFFICIENT_FUNDS") {
+            toast.error("Saldo insuficiente na conta de origem.");
+          } else if (msg === "BANK_ACCOUNT_REQUIRED") {
+            toast.error("Selecione a conta de origem.");
           } else {
             toast.error("Não foi possível criar a transferência.");
           }
@@ -1166,8 +1189,8 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState<string>(() => firstDayOfCurrentMonth());
+  const [dateTo, setDateTo] = useState<string>(() => lastDayOfCurrentMonth());
   const [search, setSearch] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [accountFilter, setAccountFilter] = useState<string>("all");
@@ -1531,7 +1554,15 @@ export default function TransactionsPage() {
                     { id },
                     {
                       onSuccess: () => toast.success("Marcado como pago."),
-                      onError: () => toast.error("Não foi possível marcar como pago."),
+                      onError: (err: unknown) => {
+                        const msg = (err as { response?: { data?: { message?: string } } })
+                          ?.response?.data?.message;
+                        if (msg === "INSUFFICIENT_FUNDS") {
+                          toast.error("Saldo insuficiente na conta de origem.");
+                        } else {
+                          toast.error("Não foi possível marcar como pago.");
+                        }
+                      },
                     }
                   )
                 }

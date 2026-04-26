@@ -106,6 +106,18 @@ export class TransactionsService {
       throw new UnprocessableEntityException('TRANSFER_COUNTERPART_INVALID');
     }
 
+    // Rule 5: every receita/despesa/transferência must touch a bank account.
+    // Card transactions (handled via PurchasesService) and invoice_payment
+    // (handled via FaturasService.pay) follow other code paths.
+    const requiresBankAccountTypes: TransactionType[] = [
+      TransactionType.income,
+      TransactionType.expense,
+      TransactionType.transfer_out,
+    ];
+    if (requiresBankAccountTypes.includes(dto.type) && !dto.bankAccountId) {
+      throw new UnprocessableEntityException('BANK_ACCOUNT_REQUIRED');
+    }
+
     // FIX SC-1: Validate categoryId belongs to this wallet
     if (dto.categoryId) {
       const cat = await this.prisma.category.findFirst({
@@ -135,6 +147,18 @@ export class TransactionsService {
         : null;
 
     const sign = this.getSign(dto.type);
+
+    // Rule 6: when this transaction would actually move money out of an
+    // account (status=paid AND outflow), make sure the account has the
+    // funds. Pending transactions are commitments — they don't deplete
+    // balance until paid.
+    if (
+      status === TransactionStatus.paid &&
+      dto.bankAccountId &&
+      (dto.type === TransactionType.expense || dto.type === TransactionType.transfer_out)
+    ) {
+      await this.assertSufficientBalance(dto.bankAccountId, dto.amount as unknown as number);
+    }
 
     // Transfer pair: created atomically with correct walletIds
     if (dto.type === TransactionType.transfer_out) {
@@ -383,6 +407,18 @@ export class TransactionsService {
     }
 
     const paidAt = dto.paidAt ? new Date(dto.paidAt) : new Date();
+
+    // Block paying outflows that would push the source account below zero.
+    if (
+      existing.bankAccountId &&
+      (existing.type === TransactionType.expense ||
+        existing.type === TransactionType.transfer_out)
+    ) {
+      await this.assertSufficientBalance(
+        existing.bankAccountId,
+        Number(existing.amount),
+      );
+    }
 
     // Transfers: pay both legs atomically
     if (existing.transferGroupId) {
@@ -652,6 +688,28 @@ export class TransactionsService {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  /**
+   * Reject if pulling `outflowAmount` from `bankAccountId` would push it
+   * below zero. Bank balance considers paid, non-canceled, non-deleted
+   * transactions on that account (sign * amount).
+   */
+  private async assertSufficientBalance(
+    bankAccountId: string,
+    outflowAmount: number,
+  ): Promise<void> {
+    const [row] = await this.prisma.$queryRaw<Array<{ balance: string | null }>>(
+      Prisma.sql`SELECT COALESCE(SUM(sign::numeric * amount), 0)::text AS balance
+                 FROM transactions
+                 WHERE "bankAccountId" = ${bankAccountId}
+                   AND status = 'paid'
+                   AND "deletedAt" IS NULL`,
+    );
+    const currentBalance = Number(row?.balance ?? 0);
+    if (currentBalance - outflowAmount < 0) {
+      throw new UnprocessableEntityException('INSUFFICIENT_FUNDS');
+    }
+  }
 
   private getSign(type: TransactionType): number {
     const signs: Record<TransactionType, number> = {

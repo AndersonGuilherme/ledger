@@ -60,6 +60,18 @@ export class DashboardMonthlyTrendItemDto {
   projected!: DashboardFlowDto;
 }
 
+export class DashboardCreditCardSummaryDto {
+  @ApiProperty({
+    description:
+      'Sum of credit_card_purchase transactions with dueDate in the summary month (status != canceled). Useful to surface card spending that is still a commitment, not yet a cash outflow.',
+    example: 12345,
+  })
+  monthSpendCents!: number;
+
+  @ApiProperty({ description: 'Number of credit card purchase rows in the summary month' })
+  monthTransactionCount!: number;
+}
+
 export class DashboardResponseDto {
   @ApiProperty({ type: DashboardMonthSummaryDto })
   currentMonth!: DashboardMonthSummaryDto;
@@ -72,4 +84,7 @@ export class DashboardResponseDto {
 
   @ApiProperty({ type: [DashboardMonthlyTrendItemDto], description: 'Months in the requested range, ordered oldest to newest' })
   monthlyTrend!: DashboardMonthlyTrendItemDto[];
+
+  @ApiProperty({ type: DashboardCreditCardSummaryDto })
+  creditCard!: DashboardCreditCardSummaryDto;
 }

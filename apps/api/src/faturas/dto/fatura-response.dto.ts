@@ -65,6 +65,10 @@ export class FaturaResponseDto {
   @ApiPropertyOptional({ nullable: true })
   invoicePaymentTxId: string | null;
 
+  /** Present in cross-card wallet listings only. */
+  @ApiPropertyOptional()
+  cardName?: string;
+
   @ApiPropertyOptional({ type: [FaturaInstallmentDto] })
   installments?: FaturaInstallmentDto[];
 

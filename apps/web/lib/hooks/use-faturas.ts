@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   listFaturas,
+  listFaturasForWallet,
   getFatura,
   payFatura,
   unpayFatura,
@@ -20,6 +21,15 @@ export function useFaturas(
     queryKey: ["faturas", walletId, cardId, status],
     queryFn: () => listFaturas(walletId, cardId, status),
     enabled: !!walletId && !!cardId,
+    staleTime: 1000 * 30,
+  });
+}
+
+export function useWalletFaturas(walletId: string, month?: string) {
+  return useQuery<Fatura[], Error>({
+    queryKey: ["faturas", "wallet", walletId, month],
+    queryFn: () => listFaturasForWallet(walletId, month),
+    enabled: !!walletId,
     staleTime: 1000 * 30,
   });
 }

@@ -569,6 +569,37 @@ export default function WalletDashboardPage() {
         </Card>
       </div>
 
+      {/* ── Credit Card Month Spend ─────────────────────────────────────── */}
+      {dashboard && dashboard.creditCard.monthTransactionCount > 0 && (
+        <Card
+          className="shadow-sm animate-in fade-in-0 slide-in-from-bottom-3 duration-500 fill-mode-both border-blue-100 bg-blue-50/30"
+          style={{ animationDelay: "260ms" }}
+        >
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <CreditCard className="h-4 w-4 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    Compras no cartão · {MONTH_NAMES[dashboard.currentMonth.month - 1]}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {dashboard.creditCard.monthTransactionCount} parcela
+                    {dashboard.creditCard.monthTransactionCount === 1 ? "" : "s"} com vencimento neste mês.
+                    Vai virar caixa quando a fatura for paga.
+                  </p>
+                </div>
+              </div>
+              <span className="text-lg font-semibold text-blue-700 tabular-nums">
+                {formatAmount(dashboard.creditCard.monthSpendCents / 100, currencyCode)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Monthly Trend Chart ───────────────────────────────────────────── */}
       <Card
         className="shadow-sm animate-in fade-in-0 slide-in-from-bottom-3 duration-500 fill-mode-both"

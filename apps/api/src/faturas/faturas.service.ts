@@ -63,6 +63,67 @@ type PrismaTxClient = Omit<
 export class FaturasService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Cross-card listing for a wallet, optionally filtered by reference month.
+   * Powers the "Faturas" tab in the sidebar.
+   */
+  async findAllForWallet(
+    walletId: string,
+    month?: string,
+  ): Promise<FaturaListResponseDto> {
+    if (month && !/^\d{4}-\d{2}$/.test(month)) {
+      throw new UnprocessableEntityException('INVALID_MONTH_FORMAT');
+    }
+
+    const faturas = await this.prisma.fatura.findMany({
+      where: { walletId, ...(month && { referenceMonth: month }) },
+      orderBy: [{ dueDate: 'asc' }, { cardId: 'asc' }],
+      include: { card: { select: { name: true } } },
+    });
+
+    const faturaIds = faturas.map((f) => f.id);
+    const totalMap = await this.aggregateFaturaTotals(faturaIds);
+    const today = todayUTC();
+
+    const result = faturas.map((f) => ({
+      id: f.id,
+      cardId: f.cardId,
+      walletId: f.walletId,
+      categoryId: null,
+      referenceMonth: f.referenceMonth,
+      closingDate: f.closingDate,
+      dueDate: f.dueDate,
+      status: computeFaturaStatus(f.closingDate, f.dueDate, f.invoicePaymentTxId, today),
+      totalCents: totalMap.get(f.id) ?? 0,
+      paidAt: f.paidAt,
+      invoicePaymentTxId: f.invoicePaymentTxId,
+      cardName: f.card.name,
+      createdAt: f.createdAt,
+      updatedAt: f.updatedAt,
+    }));
+
+    return { faturas: result, total: result.length };
+  }
+
+  private async aggregateFaturaTotals(faturaIds: string[]): Promise<Map<string, number>> {
+    if (faturaIds.length === 0) return new Map();
+    const totals = await this.prisma.transaction.groupBy({
+      by: ['faturaId'],
+      where: {
+        faturaId: { in: faturaIds },
+        type: TransactionType.credit_card_purchase,
+        status: { not: TransactionStatus.canceled },
+        deletedAt: null,
+      },
+      _sum: { amount: true },
+    });
+    return new Map(
+      totals
+        .filter((t): t is typeof t & { faturaId: string } => t.faturaId !== null)
+        .map((t) => [t.faturaId, Math.round(Number(t._sum.amount ?? 0) * 100)]),
+    );
+  }
+
   async findAll(
     walletId: string,
     cardId: string,

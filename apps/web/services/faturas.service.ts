@@ -28,6 +28,18 @@ export async function listFaturas(
   return response.data.faturas;
 }
 
+export async function listFaturasForWallet(
+  walletId: string,
+  month?: string,
+): Promise<Fatura[]> {
+  const params = month ? { month } : undefined;
+  const response = await api.get<FaturaListResponse>(
+    `/wallets/${walletId}/faturas`,
+    { params },
+  );
+  return response.data.faturas;
+}
+
 export async function getFatura(
   walletId: string,
   cardId: string,

@@ -225,6 +225,7 @@ export interface Fatura {
   totalCents: number;
   paidAt: string | null;
   invoicePaymentTxId: string | null;
+  cardName?: string;
   createdAt: string;
   updatedAt: string;
   installments?: FaturaInstallment[];
@@ -268,11 +269,17 @@ export interface DashboardMonthlyTrendItem {
   projected: DashboardFlow;
 }
 
+export interface DashboardCreditCardSummary {
+  monthSpendCents: number;
+  monthTransactionCount: number;
+}
+
 export interface DashboardResponse {
   currentMonth: DashboardMonthSummary;
   currentYear: DashboardYearSummary;
   categoryBreakdown: DashboardCategoryBreakdownItem[];
   monthlyTrend: DashboardMonthlyTrendItem[];
+  creditCard: DashboardCreditCardSummary;
 }
 
 /** Optional query params for the dashboard endpoint. Format: YYYY-MM */
